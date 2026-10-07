@@ -1,0 +1,1486 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Mnemo Agent API",
+    "version": "1.0.0",
+    "termsOfService": "https://www.trymnemo.com/terms",
+    "contact": {
+      "name": "Mnemo",
+      "url": "https://www.trymnemo.com"
+    },
+    "description": "Accountless agent access to Mnemo: create a short-lived namespace, embed, read lineage, verify (0.01 USDC per healthy verification via x402 on Base), and optionally, with a signed-in person, promote to a permanent account. Protocol: https://www.trymnemo.com/agent-protocol.md"
+  },
+  "servers": [
+    {
+      "url": "https://api.trymnemo.com"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Namespace"
+    },
+    {
+      "name": "Objects"
+    }
+  ],
+  "paths": {
+    "/v1/agent/namespaces": {
+      "post": {
+        "operationId": "createNamespace",
+        "summary": "Create an ephemeral namespace",
+        "tags": [
+          "Namespace"
+        ],
+        "security": [],
+        "description": "No account needed. Returns the capability once. Free. Send a JSON body; every field is optional, so `{}` is enough.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamespaceCreateRequest"
+              },
+              "example": {
+                "ttl_seconds": 86400,
+                "agent_id": "my-agent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamespaceCreated"
+                },
+                "example": {
+                  "tenant_id": "machine_ephem:EXAMPLE_TENANT_ID",
+                  "capability": "mnemo_eph_EXAMPLE_CAPABILITY_DO_NOT_USE",
+                  "storage_class": "ephemeral",
+                  "durable": false,
+                  "state": "ACTIVE",
+                  "expires_at": "2026-10-07T12:00:00Z",
+                  "ttl_seconds": 86400,
+                  "object_limit": 10000,
+                  "byte_limit": 26214400,
+                  "objects_used": 0,
+                  "bytes_used": 0,
+                  "upgrade_available": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`EPHEMERAL_LIFETIME_UNSUPPORTED`: ttl_seconds outside 60-259200.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Accountless access is not enabled on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`REQUEST_BODY_TOO_LARGE`: body over 4 KiB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "description": "More than 5 namespace creation requests from this source in the current clock hour (well-formed requests that reach the limit count, including ones then refused with 429 or 503).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "`EPHEMERAL_CAPACITY_EXHAUSTED` or `EPHEMERAL_INFRASTRUCTURE_UNAVAILABLE`; retry later, backing off for minutes: a retry may count toward the hourly creation limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agent/namespace": {
+      "get": {
+        "operationId": "getNamespace",
+        "summary": "Namespace status",
+        "tags": [
+          "Namespace"
+        ],
+        "security": [
+          {
+            "capability": []
+          }
+        ],
+        "description": "State, expiry, usage and limits. Free.",
+        "responses": {
+          "200": {
+            "description": "Status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamespaceStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/embed": {
+      "post": {
+        "operationId": "embed",
+        "summary": "Watermark and register a vector",
+        "tags": [
+          "Objects"
+        ],
+        "security": [
+          {
+            "capability": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "description": "Free. Store the returned `watermarked_vector`. An optional `parent` records a verified derivation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Embedded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid vector: `vector_dimension_unsupported`, `vector_nonfinite`, `vector_magnitude_extreme`, `vector_zero_norm`, `vector_near_constant`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "No credential at all (`Authentication required`), `LINEAGE_PARENT_NOT_VERIFIED`, or this credential may not embed here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`Duplicate request_id`, `LINEAGE_DEPTH_EXCEEDED` or `EPHEMERAL_NAMESPACE_PROMOTING`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "`EPHEMERAL_NAMESPACE_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`NAMESPACE_OBJECT_LIMIT`, `NAMESPACE_BYTE_LIMIT`, `GLOBAL_BYTE_LIMIT`, `SUBJECT_TOO_LARGE` or `REQUEST_BODY_TOO_LARGE` (256 KiB with a capability).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/lineage/{vector_uid}": {
+      "get": {
+        "operationId": "getLineage",
+        "summary": "Verified derivation chain",
+        "tags": [
+          "Objects"
+        ],
+        "security": [
+          {
+            "capability": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "description": "Re-verified on every read. Free.",
+        "parameters": [
+          {
+            "name": "vector_uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Complete, verified chain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "`LINEAGE_NOT_FOUND` (unknown, or not yours) or lineage not enabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Broken chain: `chain_ok` is false and `error` says why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineageResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "description": "`LINEAGE_UNAVAILABLE`; retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/verify": {
+      "post": {
+        "operationId": "verify",
+        "summary": "Verify a vector (paid)",
+        "tags": [
+          "Objects"
+        ],
+        "security": [
+          {
+            "capability": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "description": "With a namespace capability: 0.01 USDC per healthy verification (positive or negative), paid via x402 on Base. Without a paid credit: 402 with PAYMENT-REQUIRED; pay and resend the same request with PAYMENT-SIGNATURE. A verification Mnemo cannot complete is 503 and costs nothing. With an account API key, verification uses the account's subscription plan (https://www.trymnemo.com/pricing): when its verifications are used up the answer is 402 insufficient_credits without PAYMENT-REQUIRED; x402 is never offered to an API key.",
+        "x-payment": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "amount": "10000",
+          "decimals": 6,
+          "eip712Domain": {
+            "name": "USD Coin",
+            "version": "2"
+          }
+        },
+        "parameters": [
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base64-encoded x402 V2 payment payload for the requirements in the 402."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "Optional replay key: same key and body return the stored result without a second charge."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Healthy result (verified true or false); one verification consumed. A healthy negative is `verified: false`, `vector_uid: null`, `policy_ok: false`.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid vector, or `idempotency_key_invalid`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "description": "Payment required. `insufficient_credits` with PAYMENT-REQUIRED: pay and resend. Bare `{\"code\": \"insufficient_credits\"}` without the header after a payment was sent: this request was not funded (payment refused, or settlement not final yet); resend the identical body with the same PAYMENT-SIGNATURE, with backoff, and stop 90 minutes after its validBefore. Never create a second authorization automatically: a new one is a second payment. A first payment that settles late becomes a credit in this namespace, used by the next verify sent without PAYMENT-SIGNATURE. Without the header as `{\"detail\": …}`: under 120 s of lifetime left, or `ACCOUNTLESS_VERIFY_NOT_ENABLED`.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/BillingError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorDetail"
+                    }
+                  ]
+                },
+                "example": {
+                  "code": "insufficient_credits"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "`Duplicate request_id` (`{\"detail\": …}`), or `idempotency_key_reused` / `request_in_progress` (`{\"code\": …}`). After `request_in_progress`, wait, then resend the identical body with the same PAYMENT-SIGNATURE. `PAYMENT_UNRECOVERABLE_PAYLOAD_PURGED` (`{\"detail\": {\"code\": …}}`): a post-expiry recovery whose namespace data is already purged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/BillingError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorDetail"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "description": "`verification_unavailable` (not charged; resend the identical body with the same PAYMENT-SIGNATURE) or `billing_unavailable`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingError"
+                },
+                "example": {
+                  "code": "verification_unavailable",
+                  "message": "Verification could not be completed. No credit was consumed; retry (with a new request_id if you set one)."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agent/namespace/promote": {
+      "post": {
+        "operationId": "promoteNamespace",
+        "summary": "Promote the namespace to a permanent account",
+        "tags": [
+          "Namespace"
+        ],
+        "security": [
+          {
+            "capability": [],
+            "humanSession": []
+          }
+        ],
+        "description": "Optional, human-assisted handoff; autonomous agents never need it. Needs BOTH the capability and a signed-in person's session (https://www.trymnemo.com/login). At least 5 minutes of lifetime must remain. Same tenant id, vector_uids and lineage. Free.",
+        "responses": {
+          "200": {
+            "description": "Promoted. `credential` is shown once.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`SOURCE_NOT_EPHEMERAL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing capability (`CAPABILITY_REQUIRED`), invalid or expired capability (also after a completed promotion), or missing human session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`HUMAN_AUTHORITY_REQUIRED` or `PROMOTION_AUTHORITY_MISMATCH`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not enabled, or `SOURCE_UNKNOWN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`TOO_LATE_TO_PROMOTE`, `ALREADY_PERSISTENT`, `PROMOTION_IN_PROGRESS` or another conflict; see `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "`SOURCE_EXPIRED` or `SOURCE_GONE`: the call raced the namespace's expiry. An expired namespace otherwise answers 401.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`PROMOTION_FAILED` or a store is unavailable; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Vector": {
+        "type": "array",
+        "minItems": 512,
+        "maxItems": 4096,
+        "items": {
+          "type": "number"
+        },
+        "description": "An embedding: 512 to 4096 finite numbers."
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "properties": {
+          "detail": {
+            "description": "A message, an object with a `code`, or (422) a list of field errors.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": true
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "BillingError": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "insufficient_credits",
+              "billing_unavailable",
+              "idempotency_key_reused",
+              "request_in_progress",
+              "verification_unavailable"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NamespaceCreateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ttl_seconds": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 259200,
+            "default": 86400,
+            "description": "Lifetime in seconds. Outside 60-259200 is refused (400), never shortened."
+          },
+          "agent_id": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Descriptive label only; grants nothing."
+          }
+        }
+      },
+      "NamespaceCreated": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "capability",
+          "storage_class",
+          "durable",
+          "state",
+          "expires_at",
+          "ttl_seconds",
+          "object_limit",
+          "byte_limit",
+          "objects_used",
+          "bytes_used",
+          "upgrade_available"
+        ],
+        "properties": {
+          "tenant_id": {
+            "type": "string"
+          },
+          "capability": {
+            "type": "string",
+            "description": "Returned ONCE. Send as X-Mnemo-Capability."
+          },
+          "storage_class": {
+            "type": "string",
+            "enum": [
+              "ephemeral"
+            ]
+          },
+          "durable": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ACTIVE"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ttl_seconds": {
+            "type": "integer"
+          },
+          "object_limit": {
+            "type": "integer"
+          },
+          "byte_limit": {
+            "type": "integer"
+          },
+          "objects_used": {
+            "type": "integer"
+          },
+          "bytes_used": {
+            "type": "integer"
+          },
+          "upgrade_available": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ExpiryWarning": {
+        "type": "object",
+        "description": "Attached once, to the first response after 75% of the lifetime has passed.",
+        "required": [
+          "code",
+          "expires_at",
+          "seconds_remaining",
+          "action_required",
+          "data_after_expiry"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "EPHEMERAL_STORAGE_EXPIRING"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "seconds_remaining": {
+            "type": "integer"
+          },
+          "action_required": {
+            "type": "string",
+            "enum": [
+              "upgrade_to_persistent"
+            ]
+          },
+          "data_after_expiry": {
+            "type": "string",
+            "enum": [
+              "purged"
+            ]
+          }
+        }
+      },
+      "NamespaceStatus": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "storage_class",
+          "durable",
+          "state",
+          "expires_at",
+          "seconds_remaining",
+          "objects_used",
+          "objects_limit",
+          "bytes_used",
+          "bytes_limit",
+          "upgrade_available"
+        ],
+        "properties": {
+          "tenant_id": {
+            "type": "string"
+          },
+          "storage_class": {
+            "type": "string"
+          },
+          "durable": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "EXPIRED",
+              "PROMOTING",
+              "PERSISTENT",
+              "PURGING",
+              "PURGED"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "seconds_remaining": {
+            "type": "integer"
+          },
+          "objects_used": {
+            "type": "integer"
+          },
+          "objects_limit": {
+            "type": "integer"
+          },
+          "bytes_used": {
+            "type": "integer"
+          },
+          "bytes_limit": {
+            "type": "integer"
+          },
+          "upgrade_available": {
+            "type": "boolean"
+          },
+          "warning": {
+            "$ref": "#/components/schemas/ExpiryWarning"
+          }
+        }
+      },
+      "ParentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "vector_uid",
+          "relation",
+          "vector"
+        ],
+        "properties": {
+          "vector_uid": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "re_embed",
+              "summary",
+              "chunk",
+              "translation",
+              "transform"
+            ]
+          },
+          "vector": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "description": "The parent's watermarked vector as you hold it; it must verify as exactly `vector_uid`."
+          }
+        }
+      },
+      "SubjectRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "subject_uri",
+          "subject_type"
+        ],
+        "description": "Optional description of what the vector represents. If accepted, the response carries `subject_proof`.",
+        "properties": {
+          "subject_uri": {
+            "type": "string"
+          },
+          "subject_type": {
+            "type": "string"
+          },
+          "canonicalization_version": {
+            "type": "string"
+          },
+          "object_id": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "string"
+          },
+          "segment_id": {
+            "type": "string"
+          },
+          "offset": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "adapters": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "EmbedRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "vector",
+          "model_id"
+        ],
+        "properties": {
+          "vector": {
+            "$ref": "#/components/schemas/Vector"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "model_version": {
+            "type": "string",
+            "default": "1.0"
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Optional. Not scoped to the namespace and kept 24 hours: use a fresh random UUID per request. A request that ran keeps it; reuse answers 409."
+          },
+          "parent": {
+            "$ref": "#/components/schemas/ParentRequest"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/SubjectRequest"
+          }
+        }
+      },
+      "EmbedLineage": {
+        "type": "object",
+        "required": [
+          "parent_uid",
+          "relation",
+          "depth"
+        ],
+        "properties": {
+          "parent_uid": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string"
+          },
+          "depth": {
+            "type": "integer"
+          }
+        }
+      },
+      "SubjectProof": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Opaque. Pass back unchanged as `subject_proof` on verify."
+      },
+      "EmbedResponse": {
+        "type": "object",
+        "required": [
+          "vector_uid",
+          "watermarked_vector",
+          "created_at",
+          "dimensions"
+        ],
+        "properties": {
+          "vector_uid": {
+            "type": "string"
+          },
+          "watermarked_vector": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "description": "Store this vector; it carries the identity."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "dimensions": {
+            "type": "integer"
+          },
+          "subject_proof": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SubjectProof"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lineage": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EmbedLineage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "namespace_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "namespace_state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "warning": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ExpiryWarning"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "VerifyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "vector"
+        ],
+        "properties": {
+          "vector": {
+            "$ref": "#/components/schemas/Vector"
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Optional. Leave it out of a paid verify: the payment identifies the operation, so retries resend the identical body. If sent: not scoped to the namespace, kept 24 hours, so use a fresh random UUID; a 402 does not use it up; a request that ran keeps it."
+          },
+          "subject_proof": {
+            "description": "Optional; the `subject_proof` returned by embed, unchanged."
+          }
+        }
+      },
+      "VerifyLineage": {
+        "type": "object",
+        "required": [
+          "has_parent",
+          "depth"
+        ],
+        "properties": {
+          "has_parent": {
+            "type": "boolean"
+          },
+          "parent_uid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "depth": {
+            "type": "integer"
+          }
+        }
+      },
+      "VerifyResponse": {
+        "type": "object",
+        "required": [
+          "verified",
+          "confidence",
+          "vector_uid",
+          "policy_ok"
+        ],
+        "properties": {
+          "verified": {
+            "type": "boolean",
+            "description": "The verdict. true or false are both healthy results and both cost one verification. A healthy negative is `verified: false` with `vector_uid: null`, `policy_ok: false` and `lineage: null`; it is not an error. A verification that could not complete is never a 200: it is `503 verification_unavailable` and costs nothing."
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "vector_uid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "policy_ok": {
+            "type": "boolean",
+            "description": "A policy signal separate from the verdict: always false when `verified` is false. Decide on `verified`."
+          },
+          "signals": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true,
+            "description": "Diagnostic metadata about how the result was reached. Informational; fields may change."
+          },
+          "lineage": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VerifyLineage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only for a verified object; null means unknown."
+          }
+        }
+      },
+      "LineageAncestor": {
+        "type": "object",
+        "required": [
+          "vector_uid",
+          "relation"
+        ],
+        "properties": {
+          "vector_uid": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string"
+          }
+        }
+      },
+      "LineageResponse": {
+        "type": "object",
+        "required": [
+          "vector_uid",
+          "chain_ok",
+          "complete",
+          "depth",
+          "ancestors"
+        ],
+        "properties": {
+          "vector_uid": {
+            "type": "string"
+          },
+          "chain_ok": {
+            "type": "boolean"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "depth": {
+            "type": "integer"
+          },
+          "ancestors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LineageAncestor"
+            },
+            "description": "Parent first."
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "PromoteResponse": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "lifecycle_state",
+          "durable",
+          "storage_class",
+          "object_count",
+          "tier",
+          "retention_seconds",
+          "already_persistent"
+        ],
+        "properties": {
+          "tenant_id": {
+            "type": "string"
+          },
+          "lifecycle_state": {
+            "type": "string",
+            "enum": [
+              "PERSISTENT"
+            ]
+          },
+          "durable": {
+            "type": "boolean"
+          },
+          "storage_class": {
+            "type": "string",
+            "enum": [
+              "persistent"
+            ]
+          },
+          "object_count": {
+            "type": "integer"
+          },
+          "tier": {
+            "type": "string"
+          },
+          "retention_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "already_persistent": {
+            "type": "boolean"
+          },
+          "owner_human_id": {
+            "type": "string"
+          },
+          "service_account_id": {
+            "type": "string"
+          },
+          "credential_id": {
+            "type": "string"
+          },
+          "credential": {
+            "type": "string",
+            "description": "Returned once, on the call that issued it. The account's API key (X-API-Key)."
+          }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "description": "Decoded PAYMENT-REQUIRED header (x402 V2).",
+        "required": [
+          "x402Version",
+          "accepts"
+        ],
+        "properties": {
+          "x402Version": {
+            "type": "integer",
+            "enum": [
+              2
+            ]
+          },
+          "error": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "accepts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "scheme",
+                "network",
+                "asset",
+                "amount",
+                "payTo",
+                "maxTimeoutSeconds",
+                "extra"
+              ],
+              "properties": {
+                "scheme": {
+                  "type": "string",
+                  "enum": [
+                    "exact"
+                  ]
+                },
+                "network": {
+                  "type": "string",
+                  "enum": [
+                    "eip155:8453"
+                  ]
+                },
+                "asset": {
+                  "type": "string",
+                  "description": "USDC on Base: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Atomic USDC (6 decimals). 10000 = 0.01 USDC."
+                },
+                "payTo": {
+                  "type": "string",
+                  "description": "Recipient. Always take it from the 402."
+                },
+                "maxTimeoutSeconds": {
+                  "type": "integer"
+                },
+                "extra": {
+                  "type": "object",
+                  "properties": {
+                    "paymentFlow": {
+                      "type": "string",
+                      "enum": [
+                        "upfront"
+                      ]
+                    },
+                    "assetTransferMethod": {
+                      "type": "string",
+                      "enum": [
+                        "eip3009"
+                      ]
+                    },
+                    "decimals": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string",
+                      "enum": [
+                        "USD Coin"
+                      ]
+                    },
+                    "version": {
+                      "type": "string",
+                      "enum": [
+                        "2"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "PaymentResponse": {
+        "type": "object",
+        "description": "Decoded PAYMENT-RESPONSE header (x402 V2 settlement response).",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "transaction": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "payer": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "headers": {
+      "PaymentRequired": {
+        "description": "Base64-encoded JSON payment requirements (x402 V2); decoded shape: `PaymentRequired`.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "PaymentResponse": {
+        "description": "Base64-encoded JSON settlement response (x402 V2); decoded shape: `PaymentResponse`. Only on the 200 of a verification paid on this request.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "RetryAfter": {
+        "description": "Seconds to wait.",
+        "schema": {
+          "type": "integer"
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Invalid or expired credential: a capability that is unknown, revoked by a completed promotion, or past the namespace's `expires_at`; or an invalid API key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "No credential at all (`Authentication required`), or this credential may not call this operation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            }
+          }
+        }
+      },
+      "Unprocessable": {
+        "description": "Unknown or mistyped fields.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Rate limit: 120 requests per minute per namespace.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            }
+          }
+        },
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "Temporarily unavailable; retry with backoff.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "capability": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Mnemo-Capability",
+        "description": "Namespace capability, returned once by createNamespace."
+      },
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Account API key (a promoted namespace receives one)."
+      },
+      "humanSession": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A signed-in person's session token from https://www.trymnemo.com/login. Promotion only."
+      }
+    }
+  }
+}

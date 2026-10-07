@@ -1,0 +1,37 @@
+# Mnemo
+
+> Mnemo gives embedding vectors a verifiable identity. Embed a vector to get a watermarked copy and a `vector_uid`; verify any vector to learn whether it is one of yours; read the verified lineage of an object. Agents need no account and no person: create a short-lived namespace, then pay 0.01 USDC per healthy verification (positive or negative) via x402 on Base. Everything else an agent does in its namespace is free. (Calls with an account API key use that account's subscription plan instead — included monthly verifications, no overage, no top-ups, never x402; see Pricing.)
+
+API base: https://api.trymnemo.com
+
+## Docs
+
+- [Agent protocol](https://www.trymnemo.com/agent-protocol.md): the complete contract — auth, lifecycle, pricing, x402, retries, lineage, promotion, retention, limits, errors
+- [OpenAPI 3.1](https://www.trymnemo.com/openapi.json): the six agent operations
+- [Agent manifest](https://www.trymnemo.com/agent-manifest.json): machine-readable summary
+- [Examples](https://www.trymnemo.com/examples/agent-quickstart.sh): curl walkthrough; [Python](https://www.trymnemo.com/examples/agent_quickstart.py)
+- [Pricing](https://www.trymnemo.com/pricing)
+
+## Agent workflow
+
+1. `POST /v1/agent/namespaces` (no auth; JSON body, `{}` is enough) → store `capability` (shown once) and `expires_at` (default 24 h, max 72 h; activity does not extend it).
+2. `POST /v1/embed` with `X-Mnemo-Capability` → store `watermarked_vector` and `vector_uid`. Optional `parent` records a verified derivation.
+3. `POST /v1/verify` → `402` with a `PAYMENT-REQUIRED` header (x402 V2: exact, EIP-3009, USDC on eip155:8453, amount 10000, EIP-712 domain "USD Coin" / "2"). Pay, then resend the identical body with `PAYMENT-SIGNATURE` → `200`; a `200` on which the payment settled carries `PAYMENT-RESPONSE`. A `200` with `verified: false`, `vector_uid: null`, `policy_ok: false` is a healthy negative result (charged, final); decide on `verified`, not `policy_ok`. A `503 verification_unavailable` is not a result.
+4. `GET /v1/lineage/{vector_uid}` → verified chain (free).
+5. Optional, human-assisted (agents never need it): a person signed in at https://www.trymnemo.com/login promotes the namespace to a permanent account (`POST /v1/agent/namespace/promote` with the capability and that person's session token). Same ids and lineage; the account's plan retention applies.
+
+Leave `request_id` out of a paid verify: the payment identifies the operation, so every retry resends the identical body. Elsewhere `request_id` is optional and not scoped to your namespace: if you send one, use a fresh random UUID.
+
+## On errors
+
+- `503 verification_unavailable`: not charged. Resend the identical body with the same `PAYMENT-SIGNATURE`; do not pay again.
+- `409 request_in_progress`: wait a moment, then resend the identical body with the same `PAYMENT-SIGNATURE`. `409 Duplicate request_id`: use a new `request_id`, or leave it out.
+- `402` without `PAYMENT-REQUIRED` after you paid: this request was not funded (refused, or settlement not final yet). Resend the identical body with the same `PAYMENT-SIGNATURE`, with backoff; stop 90 minutes after its `validBefore`. Never create a second authorization automatically: a new one is a second payment. If the first settles late, it becomes a credit that the next verify in this namespace (sent without `PAYMENT-SIGNATURE`) uses.
+- `429`: wait `Retry-After` (120 requests/min per namespace; 5 namespace creation requests per clock hour per source; requests then refused with `429` or `503` can count too).
+- `403` with no credential: send `X-Mnemo-Capability`. `401`: invalid or expired capability.
+- `401` after `expires_at`, `410 EPHEMERAL_NAMESPACE_EXPIRED`: the namespace is gone; create a new one.
+- `404` on `POST /v1/agent/namespaces`: accountless access is not enabled on this deployment.
+
+## Not in v1
+
+- MCP: planned; there is no public MCP server. Use the HTTP API.

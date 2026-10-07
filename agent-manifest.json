@@ -1,0 +1,75 @@
+{
+  "name": "Mnemo Agent API",
+  "description": "Verifiable identity for embedding vectors. Agents create a short-lived namespace without an account, embed vectors, read verified lineage, and pay per verification with USDC via x402 on Base.",
+  "website": "https://www.trymnemo.com",
+  "api_base": "https://api.trymnemo.com",
+  "documentation": "https://www.trymnemo.com/agent-protocol.md",
+  "openapi": "https://www.trymnemo.com/openapi.json",
+  "llms_txt": "https://www.trymnemo.com/llms.txt",
+  "examples": [
+    "https://www.trymnemo.com/examples/agent-quickstart.sh",
+    "https://www.trymnemo.com/examples/agent_quickstart.py"
+  ],
+  "availability": "If POST /v1/agent/namespaces answers 404, accountless access is not enabled on this deployment.",
+  "pricing": {
+    "summary": "0.01 USDC per healthy verification, whether the result is positive or negative, paid via x402 on Base.",
+    "charged_operation": "POST /v1/verify",
+    "unit": "one healthy completed verification (verified true or false)",
+    "price_atomic": "10000",
+    "asset": "USDC",
+    "asset_decimals": 6,
+    "not_charged": [
+      "namespace creation and status",
+      "embed",
+      "lineage reads",
+      "promotion",
+      "refused, malformed or rate-limited requests",
+      "a verification Mnemo fails to complete (503)"
+    ],
+    "free_verifications_for_accountless_namespaces": 0
+  },
+  "payment": {
+    "protocol": "x402",
+    "x402_version": 2,
+    "scheme": "exact",
+    "network": "eip155:8453",
+    "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "transfer_method": "eip3009",
+    "eip712_domain": { "name": "USD Coin", "version": "2" },
+    "request_header": "PAYMENT-SIGNATURE",
+    "challenge_header": "PAYMENT-REQUIRED",
+    "settlement_header": "PAYMENT-RESPONSE",
+    "pay_to": "Take payTo and amount from the 402 PAYMENT-REQUIRED header; do not hard-code them."
+  },
+  "authentication": {
+    "namespace_capability": { "header": "X-Mnemo-Capability", "issued_by": "POST /v1/agent/namespaces", "shown": "once" },
+    "account_api_key": { "header": "X-API-Key", "issued_by": "promotion, or the dashboard", "billing": "the account's subscription plan (https://www.trymnemo.com/pricing): included monthly verifications, no overage, no top-ups, never x402" },
+    "promotion_human_session": { "header": "Authorization: Bearer", "sign_in": "https://www.trymnemo.com/login", "optional": true }
+  },
+  "request_id": "omit it on a paid verify (the payment identifies the operation; retries resend the identical body); elsewhere optional, not scoped to a namespace, kept 24 hours: use a fresh random UUID",
+  "capabilities": [
+    { "operation": "POST /v1/agent/namespaces", "auth": "none", "cost": "free", "summary": "create an ephemeral namespace (JSON body; {} is enough); returns the capability once" },
+    { "operation": "GET /v1/agent/namespace", "auth": "capability", "cost": "free", "summary": "state, expiry, usage, limits" },
+    { "operation": "POST /v1/embed", "auth": "capability or API key", "cost": "free", "summary": "watermark and register a vector; optional verified parent" },
+    { "operation": "GET /v1/lineage/{vector_uid}", "auth": "capability or API key", "cost": "free", "summary": "verified derivation chain" },
+    { "operation": "POST /v1/verify", "auth": "capability (paid) or API key", "cost": "with a capability: 0.01 USDC per healthy verification (x402); with an API key: the account's plan, never x402", "summary": "is this vector one of this namespace's objects" },
+    { "operation": "POST /v1/agent/namespace/promote", "auth": "capability and human session", "cost": "free", "summary": "optional, human-assisted handoff (agents never need it): promote to a permanent account; identities and lineage preserved" }
+  ],
+  "limits": {
+    "requests_per_minute_per_namespace": 120,
+    "namespace_creations_per_hour_per_source": 5,
+    "objects_per_namespace": 10000,
+    "accounted_bytes_per_namespace": 26214400,
+    "namespace_lifetime_seconds": { "default": 86400, "min": 60, "max": 259200 },
+    "vector_dimensions": { "min": 512, "max": 4096 }
+  },
+  "retention_after_promotion_days": {
+    "free": 30,
+    "starter": 90,
+    "growth": 365,
+    "scale": 1095,
+    "pro_legacy": 365,
+    "enterprise": "indefinite"
+  },
+  "not_in_v1": ["MCP (planned)"]
+}

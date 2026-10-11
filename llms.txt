@@ -35,3 +35,10 @@ Leave `request_id` out of a paid verify: the payment identifies the operation, s
 ## Not in v1
 
 - MCP: planned; there is no public MCP server. Use the HTTP API.
+
+## Legal
+
+- [Terms of Service](https://www.trymnemo.com/terms): Use of the Mnemo API, including through an automated agent, script, SDK, wallet or other client, constitutes acceptance of the Mnemo Terms of Service on behalf of the operator and of the person or entity on whose behalf it acts.
+- [Privacy Policy](https://www.trymnemo.com/privacy)
+- Security reports: security@trymnemo.com
+- [Pricing](https://www.trymnemo.com/pricing)

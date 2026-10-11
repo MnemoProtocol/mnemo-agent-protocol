@@ -8,7 +8,13 @@
       "name": "Mnemo",
       "url": "https://www.trymnemo.com"
     },
-    "description": "Accountless agent access to Mnemo: create a short-lived namespace, embed, read lineage, verify (0.01 USDC per healthy verification via x402 on Base), and optionally, with a signed-in person, promote to a permanent account. Protocol: https://www.trymnemo.com/agent-protocol.md"
+    "description": "Accountless agent access to Mnemo: create a short-lived namespace, embed, read lineage, verify (0.01 USDC per healthy verification via x402 on Base), and optionally, with a signed-in person, promote to a permanent account. Protocol: https://www.trymnemo.com/agent-protocol.md",
+    "x-mnemo-legal": {
+      "security_contact": "security@trymnemo.com",
+      "privacy_policy": "https://www.trymnemo.com/privacy",
+      "pricing": "https://www.trymnemo.com/pricing",
+      "acceptance": "Use of the Mnemo API, including through an automated agent, script, SDK, wallet or other client, constitutes acceptance of the Mnemo Terms of Service on behalf of the operator and of the person or entity on whose behalf it acts."
+    }
   },
   "servers": [
     {

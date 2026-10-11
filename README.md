@@ -16,3 +16,7 @@ This repository holds the machine-facing contract for `https://api.trymnemo.com`
 | [`examples/agent_quickstart.py`](examples/agent_quickstart.py) | the same in Python, including the paid verify (placeholders only) |
 
 `agent-protocol.md` is the reference when anything here differs.
+
+## Legal
+
+Use of the Mnemo API, including through an automated agent, script, SDK, wallet or other client, constitutes acceptance of the Mnemo Terms of Service on behalf of the operator and of the person or entity on whose behalf it acts. [Terms of Service](https://www.trymnemo.com/terms) · [Privacy Policy](https://www.trymnemo.com/privacy) · [Pricing](https://www.trymnemo.com/pricing) · Security reports: security@trymnemo.com (see [SECURITY.md](SECURITY.md)).

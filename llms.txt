@@ -38,7 +38,7 @@ Leave `request_id` out of a paid verify: the payment identifies the operation, s
 
 ## Commercial terms
 
-- Free trial (accounts only): at most 30 days, 10,000 verifications in total, ending earlier when that allowance is used. Not a perpetual free plan; no rollover, top-up, automatic overage or x402 fallback.
+- Free trial (accounts only): at most 30 days, 10,000 verifications in total, ending earlier when that allowance is used. Not a perpetual free plan; no rollover, no top-up, no automatic overage and no x402 fallback.
 - Paid plans: monthly included verification allowance that resets each billing period; no automatic overage charges; renew monthly until cancelled.
 - API-key calls never fall back to x402.
 - x402 entitlement (a settled payment whose verification could not be executed): bound to that namespace, non-transferable, non-redeemable for money or any asset, and expires with the namespace.
@@ -54,4 +54,4 @@ Leave `request_id` out of a paid verify: the payment identifies the operation, s
 - [Pricing](https://www.trymnemo.com/pricing)
 - Governing law: State of Wyoming, USA
 - The Mnemo technology is patent pending.
-- Licensing: the MIT License applies only to the example files identified as MIT-licensed in the applicable examples/LICENSE file; it does not cover the Services, the SDK or the protocol documentation.
+- Licensing: the MIT License applies only to the example files listed in examples/LICENSE of the Mnemo SDK repository (https://github.com/MnemoProtocol/mnemo-sdk/blob/main/examples/LICENSE); it does not cover the Services, the SDK or the protocol documentation.

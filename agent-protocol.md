@@ -89,7 +89,7 @@ Send a JSON body; every field in it is optional, so `{}` is enough: `{"ttl_secon
 }
 ```
 
-Store the `capability` now; it is never shown again.
+Store the `capability` now; it is never shown again. The `201` also carries the Terms of Service `Link` header (§5).
 
 ### 3.2 Namespace status — `GET /v1/agent/namespace`
 
@@ -163,8 +163,25 @@ Optional and human-assisted; an autonomous agent never needs it. See §8.
 Mnemo implements x402 V2 (`exact` scheme, EVM, EIP-3009 `transferWithAuthorization`, settlement **before** the
 verification). Any standard x402 V2 client can pay.
 
-1. `POST /v1/verify` with the capability and your body. With no paid credit the answer is
-   `402 {"code": "insufficient_credits"}` and a **`PAYMENT-REQUIRED`** header: base64-encoded JSON.
+**Terms notice.** The payment challenge identifies the Terms of Service before you pay. Its JSON body states them next
+to the `code`:
+
+```json
+{"code": "insufficient_credits", "terms_url": "https://www.trymnemo.com/terms", "terms_version": "2026-10-12",
+ "privacy_url": "https://www.trymnemo.com/privacy", "dpa_url": "https://www.trymnemo.com/dpa"}
+```
+
+Every accountless `402`, and the `201` of `POST /v1/agent/namespaces`, carries the header
+`Link: <https://www.trymnemo.com/terms>; rel="terms-of-service", <https://www.trymnemo.com/privacy>; rel="privacy-policy"`.
+The Terms are not part of `PAYMENT-REQUIRED`, which is unchanged: sign exactly what it states (step 3). Sending a
+payment authorization in response to the challenge accepts the Terms in the stated `terms_version` (Terms 5.2). Only
+the challenge carries the `terms_*` fields, so test `code` rather than the whole body. A call with an API key never
+gets a challenge: when its plan is used up, verify answers `402 {"code": "insufficient_credits"}` with no
+`PAYMENT-REQUIRED` and no `terms_*` fields (§1).
+
+1. `POST /v1/verify` with the capability and your body. With no paid credit the answer is the challenge: `402` with
+   `"code": "insufficient_credits"` (and the Terms fields above) and a **`PAYMENT-REQUIRED`** header: base64-encoded
+   JSON.
 2. Decode it. It contains `x402Version: 2`, `resource {url: "/v1/verify"}` and one entry in `accepts`:
 
    ```json

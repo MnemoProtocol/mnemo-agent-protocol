@@ -21,9 +21,9 @@
       "acceptance": "Access to or use of the Mnemo API through an automated agent, application, script, SDK, protocol client, wallet, autonomous system, or other automated means constitutes access to and use of the Services by the person or entity that operates, controls, authorizes, deploys, or causes that system to access the Services, and acceptance of the Mnemo Terms of Service (Terms 1.2 and 1.5).",
       "governing_law": "State of Wyoming, USA (Terms 19)",
       "patents": "The Mnemo technology is patent pending.",
-      "licensing": "The MIT License applies only to the example files identified as MIT-licensed in the applicable examples/LICENSE file. The SDK is under the Mnemo SDK License; protocol documentation may be used only to build software that interoperates with the Services.",
+      "licensing": "The MIT License applies only to the example files listed in examples/LICENSE of the Mnemo SDK repository (https://github.com/MnemoProtocol/mnemo-sdk/blob/main/examples/LICENSE). The SDK is under the Mnemo SDK License; protocol documentation may be used only to build software that interoperates with the Services.",
       "commercial_terms": {
-        "free_trial": "Accounts only. At most 30 days from activation, with 10,000 verifications in total; ends earlier when that allowance is used. Not a perpetual free plan. No rollover, re-grant, top-up, automatic overage or x402 fallback; never converts to a paid plan automatically.",
+        "free_trial": "Accounts only. At most 30 days from activation, with 10,000 verifications in total; ends earlier when that allowance is used. Not a perpetual free plan. No rollover, no re-grant, no top-up, no automatic overage and no x402 fallback; never converts to a paid plan automatically.",
         "paid_plans": "Monthly plans with an included verification allowance that resets each billing period. No automatic overage charges and no top-ups. Plans renew monthly until cancelled.",
         "api_key_x402": "Calls authenticated with an account API key use the account's plan and never fall back to x402.",
         "x402_entitlement": "If an x402 payment settles but the verification cannot be executed, a paid entitlement to one verification is recorded for that namespace. It is bound to the namespace, non-transferable, non-redeemable for money, USDC or any other asset, has no monetary value, and expires with the namespace."
@@ -70,6 +70,11 @@
         "responses": {
           "201": {
             "description": "Created.",
+            "headers": {
+              "Link": {
+                "$ref": "#/components/headers/TermsLink"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -463,10 +468,13 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "402": {
-            "description": "Payment required. `insufficient_credits` with PAYMENT-REQUIRED: pay and resend. Bare `{\"code\": \"insufficient_credits\"}` without the header after a payment was sent: this request was not funded (payment refused, or settlement not final yet); resend the identical body with the same PAYMENT-SIGNATURE, with backoff, and stop 90 minutes after its validBefore. Never create a second authorization automatically: a new one is a second payment. A first payment that settles late becomes a credit in this namespace, used by the next verify sent without PAYMENT-SIGNATURE. Without the header as `{\"detail\": …}`: under 120 s of lifetime left, or `ACCOUNTLESS_VERIFY_NOT_ENABLED`.",
+            "description": "Payment required. `insufficient_credits` with PAYMENT-REQUIRED: pay and resend. Bare `{\"code\": \"insufficient_credits\"}` without the header after a payment was sent: this request was not funded (payment refused, or settlement not final yet); resend the identical body with the same PAYMENT-SIGNATURE, with backoff, and stop 90 minutes after its validBefore. Never create a second authorization automatically: a new one is a second payment. A first payment that settles late becomes a credit in this namespace, used by the next verify sent without PAYMENT-SIGNATURE. Without the header as `{\"detail\": …}`: under 120 s of lifetime left, or `ACCOUNTLESS_VERIFY_NOT_ENABLED`. The 402 that carries PAYMENT-REQUIRED (the x402 challenge) also states the Terms in its body (`terms_url`, `terms_version`, `privacy_url`, `dpa_url`); PAYMENT-REQUIRED itself is unchanged and does not contain them, and paying accepts the stated Terms version. With an API key: plain `{\"code\": \"insufficient_credits\"}`, no PAYMENT-REQUIRED, no x402.",
             "headers": {
               "PAYMENT-REQUIRED": {
                 "$ref": "#/components/headers/PaymentRequired"
+              },
+              "Link": {
+                "$ref": "#/components/headers/TermsLink"
               }
             },
             "content": {
@@ -481,8 +489,23 @@
                     }
                   ]
                 },
-                "example": {
-                  "code": "insufficient_credits"
+                "examples": {
+                  "x402_challenge": {
+                    "summary": "Accountless payment challenge (sent with PAYMENT-REQUIRED)",
+                    "value": {
+                      "code": "insufficient_credits",
+                      "terms_url": "https://www.trymnemo.com/terms",
+                      "terms_version": "2026-10-12",
+                      "privacy_url": "https://www.trymnemo.com/privacy",
+                      "dpa_url": "https://www.trymnemo.com/dpa"
+                    }
+                  },
+                  "not_funded_or_api_key": {
+                    "summary": "Without PAYMENT-REQUIRED: a request that was not funded, or an API key whose plan is used up",
+                    "value": {
+                      "code": "insufficient_credits"
+                    }
+                  }
                 }
               }
             }
@@ -692,6 +715,25 @@
           },
           "message": {
             "type": "string"
+          },
+          "terms_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL of the Terms of Service. Only on the accountless x402 payment challenge (the 402 sent with PAYMENT-REQUIRED)."
+          },
+          "terms_version": {
+            "type": "string",
+            "description": "Version of the Terms of Service in force, e.g. `2026-10-12`. Only on the accountless x402 payment challenge (the 402 sent with PAYMENT-REQUIRED)."
+          },
+          "privacy_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL of the Privacy Policy. Only on the accountless x402 payment challenge (the 402 sent with PAYMENT-REQUIRED)."
+          },
+          "dpa_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL of the Data Processing Addendum. Only on the accountless x402 payment challenge (the 402 sent with PAYMENT-REQUIRED)."
           }
         },
         "additionalProperties": false
@@ -1424,6 +1466,13 @@
         "schema": {
           "type": "integer"
         }
+      },
+      "TermsLink": {
+        "description": "Terms notice: links the Terms of Service (rel=\"terms-of-service\") and the Privacy Policy (rel=\"privacy-policy\"). Sent on the 201 of namespace creation and on every accountless 402.",
+        "schema": {
+          "type": "string"
+        },
+        "example": "<https://www.trymnemo.com/terms>; rel=\"terms-of-service\", <https://www.trymnemo.com/privacy>; rel=\"privacy-policy\""
       }
     },
     "responses": {

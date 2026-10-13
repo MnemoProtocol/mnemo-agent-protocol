@@ -1,6 +1,6 @@
 # Mnemo
 
-> Mnemo gives embedding vectors a verifiable identity. Embed a vector to get a watermarked copy and a `vector_uid`; verify any vector to learn whether it is one of yours; read the verified lineage of an object. Agents need no account and no person: create a short-lived namespace, then pay 0.01 USDC per healthy verification (positive or negative) via x402 on Base. Everything else an agent does in its namespace is free. (Calls with an account API key use that account's subscription plan instead — included monthly verifications, no overage, no top-ups, never x402; see Pricing.)
+> Mnemo gives embedding vectors a verifiable identity. Embed a vector to get a watermarked copy and a `vector_uid`; verify any vector to learn whether it is one of yours; read the verified lineage of an object. Agents need no account and no person: create a short-lived namespace, then pay 0.01 USDC per healthy verification (positive or negative) via x402 on Base. Everything else an agent does in its namespace is free. (Calls with an account API key use that account's subscription plan instead — included monthly verifications, no automatic overage, no top-ups, never x402; see Pricing.)
 
 API base: https://api.trymnemo.com
 
@@ -36,9 +36,22 @@ Leave `request_id` out of a paid verify: the payment identifies the operation, s
 
 - MCP: planned; there is no public MCP server. Use the HTTP API.
 
+## Commercial terms
+
+- Free trial (accounts only): at most 30 days, 10,000 verifications in total, ending earlier when that allowance is used. Not a perpetual free plan; no rollover, top-up, automatic overage or x402 fallback.
+- Paid plans: monthly included verification allowance that resets each billing period; no automatic overage charges; renew monthly until cancelled.
+- API-key calls never fall back to x402.
+- x402 entitlement (a settled payment whose verification could not be executed): bound to that namespace, non-transferable, non-redeemable for money or any asset, and expires with the namespace.
+
 ## Legal
 
-- [Terms of Service](https://www.trymnemo.com/terms): Use of the Mnemo API, including through an automated agent, script, SDK, wallet or other client, constitutes acceptance of the Mnemo Terms of Service on behalf of the operator and of the person or entity on whose behalf it acts.
+- [Terms of Service](https://www.trymnemo.com/terms): Access to or use of the Mnemo API through an automated agent, application, script, SDK, protocol client, wallet, autonomous system, or other automated means constitutes access to and use of the Services by the person or entity that operates, controls, authorizes, deploys, or causes that system to access the Services, and acceptance of the Mnemo Terms of Service (Terms 1.2 and 1.5).
+- Terms version: 2026-10-12 ([this version](https://www.trymnemo.com/terms/versions/2026-10-12); [all versions](https://www.trymnemo.com/terms/versions))
 - [Privacy Policy](https://www.trymnemo.com/privacy)
+- [Data Processing Addendum](https://www.trymnemo.com/dpa): applies automatically when Mnemo processes personal data in Customer Content as a processor. For EEA, UK or Swiss personal data that needs a restricted-transfer mechanism, the EU SCCs (Module Two or Three) or UK Addendum must be completed first: contact legal@trymnemo.com. Accountless (x402) access must not be used for personal data subject to EEA, UK or Swiss data protection law.
+- [Subprocessors](https://www.trymnemo.com/subprocessors)
 - Security reports: security@trymnemo.com
 - [Pricing](https://www.trymnemo.com/pricing)
+- Governing law: State of Wyoming, USA
+- The Mnemo technology is patent pending.
+- Licensing: the MIT License applies only to the example files identified as MIT-licensed in the applicable examples/LICENSE file; it does not cover the Services, the SDK or the protocol documentation.

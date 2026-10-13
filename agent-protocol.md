@@ -25,7 +25,7 @@ If `POST /v1/agent/namespaces` answers `404`, accountless access is not enabled 
 | Network / asset | Base mainnet (`eip155:8453`) / USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 | What is charged | one **healthy completed** `POST /v1/verify` = one verification, `verified: true` **or** `verified: false` |
 | Free | creating and reading a namespace, embedding, lineage reads, promotion, refused or malformed requests, rate-limited requests, and any verification Mnemo fails to complete (`503`) |
-| Included free verifications | none for an accountless namespace. A promoted namespace becomes an ordinary account on the free plan, with that plan's monthly verification allowance |
+| Included free verifications | none for an accountless namespace. A promoted namespace becomes an ordinary account on the free trial: up to 30 days with 10,000 verifications in total, ending after 30 days or when that allowance is used, whichever comes first (not a perpetual free plan; no x402 fallback) |
 
 Each payment buys exactly one verification. A verification Mnemo fails to complete costs nothing, and the payment stays
 usable for the retry (§6). A replay of a request you already paid for creates no second payment, credit or charge.
@@ -215,7 +215,8 @@ without `PAYMENT-SIGNATURE`.
 **Late settlement.** If the first payment settles after all (after you stopped, or after you paid again), Mnemo
 credits it to this namespace. The next verify in this namespace, sent without `PAYMENT-SIGNATURE`, uses that credit
 and answers `200` without asking for payment. A credit can be spent only by a verify in this namespace before its
-`expires_at` (§4); it does not move to another namespace.
+`expires_at` (§4); it does not move to another namespace. A credit is non-transferable, cannot be redeemed for
+money, USDC or any other asset, has no monetary value, and expires with the namespace.
 
 Mnemo never asks a namespace that already has a paid credit to pay again, and a payment is never accepted for a
 different amount, asset, network or recipient.
@@ -308,7 +309,7 @@ example `503 PROMOTION_FAILED`), check `GET /v1/agent/namespace`:
 
 Promotion is free.
 
-Promotion is not "kept forever": the account's objects follow the retention of its plan (§9).
+Promotion does not mean indefinite retention: the account's objects follow the retention of its plan (§9).
 
 ## 9. Retention
 
@@ -317,7 +318,7 @@ promotion:
 
 | Plan | Retention |
 |---|---|
-| Free | 30 days |
+| Free trial | until the trial ends (at most 30 days) |
 | Starter | 90 days |
 | Growth | 365 days |
 | Scale | 1,095 days |

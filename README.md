@@ -30,10 +30,12 @@ client = MnemoClient(api_key="your-api-key")
 ```
 
 - SDK repository: https://github.com/MnemoProtocol/mnemo-sdk
-- PyPI: https://pypi.org/project/mnemo-protocol/ (distribution `mnemo-protocol`, import `mnemo_sdk`; the unrelated PyPI projects `mnemo`, `mnemo-sdk`, `mnemo-ai` and `mnemo-mcp` are not Mnemo's)
+- PyPI: https://pypi.org/project/mnemo-protocol/ (distribution `mnemo-protocol`, import `mnemo_sdk`)
 - SDK docs: https://www.trymnemo.com/docs/sdk?src=github
 
 The SDK does not implement accountless namespaces, lineage or x402; for those, use this contract over HTTP.
+
+Mnemo here is the embedding-vector provenance API at trymnemo.com (GitHub MnemoProtocol; PyPI mnemo-protocol, imported as mnemo_sdk). It is not the unrelated PyPI packages mnemo, mnemo-sdk, mnemo-ai or mnemo-mcp, and not an AI-memory app or MCP server.
 
 ## Contract files
 

@@ -2,14 +2,16 @@
 
 **Mnemo (trymnemo.com) watermarks embedding vectors and checks whether a vector was issued to your own account or namespace. This repository is the public HTTP contract for its accountless Agent API at `https://api.trymnemo.com`.**
 
+**Provenance, not proximity.** In Mnemo, provenance means this exact `vector_uid` was issued by Mnemo at embed time and is still attributable to the account or namespace that issued it. A nearest-neighbour search can say a vector is close to something, not whether a vector you hold was issued by your own pipeline. Use Mnemo when you store embeddings and later need to check whether a vector you hold (for example a retrieved one) was issued to your own namespace or account, or to record and read a verified parent-to-child derivation.
+
 ## What this repository is
 
 The public contract for the **accountless Mnemo Agent API**. An agent with no account and no person in the loop:
 
 1. **Namespace** — `POST /v1/agent/namespaces` creates a short-lived namespace (default 24 h, at most 72 h) and returns a capability once; send it as `X-Mnemo-Capability`.
-2. **Embed** — `POST /v1/embed` returns a measurably perturbed watermarked copy of your vector and a `vector_uid`. Free.
+2. **Embed** — `POST /v1/embed` with your `vector` and a `model_id` (both required; `model_id` is a label you declare) returns a measurably perturbed watermarked copy of your vector and a `vector_uid`. Free.
 3. **Lineage** — `GET /v1/lineage/{vector_uid}` returns the chain of parents you named with `parent` at embed time, each verified as yours; it does not check what the transformation did. Free.
-4. **Verify (paid)** — `POST /v1/verify` answers `402` with `PAYMENT-REQUIRED`; pay via x402 on Base and resend the identical body with `PAYMENT-SIGNATURE`. Each healthy verification, positive or negative, costs 0.01 USDC (see §1 of [`agent-protocol.md`](agent-protocol.md)).
+4. **Verify (paid)** — `POST /v1/verify` answers `402` with `PAYMENT-REQUIRED`; pay via x402 on Base and resend the identical body with `PAYMENT-SIGNATURE`. The result carries `verified`, `confidence`, `vector_uid` (null when not verified) and `policy_ok`; decide on `verified`. Each healthy verification, positive or negative, costs 0.01 USDC (see §1 of [`agent-protocol.md`](agent-protocol.md)).
 
 **Scope of verify.** Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. `verified: false` is a normal, charged result; it is not a statement about who else may have registered the vector.
 
@@ -53,6 +55,9 @@ Paying with `examples/agent_quickstart.py` needs Python 3.10+ (`pip install "x40
 
 - To establish truth, authorship, ownership or authenticity of content: Mnemo does not determine any of these.
 - To check whether a vector belongs to someone else: verify only resolves objects registered to your own account or namespace.
+- For vectors never embedded through Mnemo: there is no retroactive coverage.
+- For similarity search or storage: Mnemo is not a vector database.
+- To keep data in an accountless namespace past `expires_at`: it is purged unless a person promotes it.
 - For raw text, images, audio or video: Mnemo works on embedding vectors (512–4096 numbers).
 - When your pipeline must keep the original vector bit-for-bit: embed returns a perturbed copy that you store in its place.
 - Through MCP: there is no public MCP server; use the HTTP API.

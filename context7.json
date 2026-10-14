@@ -1,0 +1,21 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "Mnemo Agent API",
+  "description": "Public HTTP contract for the Mnemo Agent API at https://api.trymnemo.com. Mnemo is an HTTP API that watermarks embedding vectors, checks whether a vector was issued to your own account or namespace, and records lineage from parents you name at embed time; access by API key or pay-per-verify (x402).",
+  "rules": [
+    "Accountless path: POST /v1/agent/namespaces (no auth; JSON body, {} is enough) returns a capability once. Store it and send it as X-Mnemo-Capability. The namespace expires (default 24 h, at most 72 h); after expiry create a new one.",
+    "Embed: POST /v1/embed returns a measurably perturbed watermarked copy and a vector_uid. Store and use watermarked_vector in place of the original vector. Embed accepts 512-4096 dimensions and is free on the accountless path.",
+    "Verify: on a namespace with no paid credit, POST /v1/verify answers 402 with PAYMENT-REQUIRED. Pay via x402 on Base (eip155:8453), then resend the identical body with PAYMENT-SIGNATURE. Each healthy verification, positive or negative, costs 0.01 USDC.",
+    "Take payTo and amount from the 402 PAYMENT-REQUIRED header; never hard-code them. Omit request_id on a paid verify: the payment identifies the operation, so every retry resends the identical body.",
+    "Never create a second payment authorization automatically. On 503 verification_unavailable, 409 request_in_progress, or a 402 without PAYMENT-REQUIRED after paying, resend the identical body with the same PAYMENT-SIGNATURE.",
+    "Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. Decide on verified, not policy_ok.",
+    "verified: false is a normal, charged result; it is not a statement about who else may have registered the vector. Do not use Mnemo to establish truth, authorship, ownership or authenticity.",
+    "Lineage: name a parent you own with parent at embed time; GET /v1/lineage/{vector_uid} returns that chain, each parent verified as yours. It does not check what the transformation did. Lineage reads are free.",
+    "Have an account API key? Send X-API-Key; calls use the account's subscription plan, never x402. Use the official Python SDK: pip install mnemo-protocol, then from mnemo_sdk import MnemoClient.",
+    "Python SDK repository: https://github.com/MnemoProtocol/mnemo-sdk (PyPI: mnemo-protocol). The SDK does not implement accountless namespaces, lineage or x402; for those, call this HTTP contract directly.",
+    "Not the unrelated PyPI packages mnemo, mnemo-sdk, mnemo-ai or mnemo-mcp. There is no public Mnemo MCP server; use the HTTP API.",
+    "Do not use the accountless (x402) path for personal data subject to EEA, UK or Swiss data protection law.",
+    "On 429 wait Retry-After. On 401 after expires_at or 410 EPHEMERAL_NAMESPACE_EXPIRED, create a new namespace. A 404 on POST /v1/agent/namespaces means accountless access is not enabled on that deployment.",
+    "Full contract (auth, pricing, x402, retries, limits, errors): https://www.trymnemo.com/agent-protocol.md?src=context7 and OpenAPI 3.1: https://www.trymnemo.com/openapi.json?src=context7"
+  ]
+}

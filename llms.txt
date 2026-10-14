@@ -1,28 +1,28 @@
 # Mnemo
 
-> Mnemo gives embedding vectors a verifiable identity. Embed a vector to get a watermarked copy and a `vector_uid`; verify any vector to learn whether it is one of yours; read the verified lineage of an object. Agents need no account and no person: create a short-lived namespace, then pay 0.01 USDC per healthy verification (positive or negative) via x402 on Base. Everything else an agent does in its namespace is free. (Calls with an account API key use that account's subscription plan instead — included monthly verifications, no automatic overage, no top-ups, never x402; see Pricing.)
+> HTTP API that gives embedding vectors a verifiable identity. Embed returns a measurably perturbed watermarked copy and a vector_uid; store that copy. Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. Lineage returns verified parents you named at embed. API keys: subscription, never x402. Accountless namespaces pay 0.01 USDC per verify via x402 on Base. Not for similarity search or judging truth, authorship or ownership.
 
 API base: https://api.trymnemo.com
 
-## Docs
+Python SDK (account API-key path only; no x402, no lineage): `pip install mnemo-protocol`, then `from mnemo_sdk import MnemoClient`. PyPI: https://pypi.org/project/mnemo-protocol/. Source: https://github.com/MnemoProtocol/mnemo-sdk. Protocol files: https://github.com/MnemoProtocol/mnemo-agent-protocol.
 
-- [Agent protocol](https://www.trymnemo.com/agent-protocol.md): the complete contract — auth, lifecycle, pricing, x402, retries, lineage, promotion, retention, limits, errors
-- [OpenAPI 3.1](https://www.trymnemo.com/openapi.json): the six agent operations
-- [Agent manifest](https://www.trymnemo.com/agent-manifest.json): machine-readable summary
-- [Examples](https://www.trymnemo.com/examples/agent-quickstart.sh): curl walkthrough; [Python](https://www.trymnemo.com/examples/agent_quickstart.py)
-- [Pricing](https://www.trymnemo.com/pricing)
+Mnemo here is the embedding-vector provenance API at trymnemo.com (GitHub MnemoProtocol; PyPI mnemo-protocol, imported as mnemo_sdk). It is not the unrelated PyPI packages mnemo, mnemo-sdk, mnemo-ai or mnemo-mcp, and not an AI-memory app or MCP server.
 
-## Agent workflow
+**Results.** Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. verified=true returns that object's vector_uid. verified=false is a normal, charged result meaning attribution could not be shown (for example the vector was never embedded here or was changed too much after embedding); it is a safe outcome, not an error, and not proof that the vector belongs to someone else. Verify cannot tell you whether a vector belongs to another party. `confidence` is diagnostic, not a probability; decide on `verified`. Embed returns a measurably perturbed, unit-length watermarked copy of your FP32 input: store and use that copy, not your original.
+
+**Not for:** vectors not embedded through Mnemo in your own namespace or account, checking another party's vectors, embedding generation or similarity search, judging truth, authorship, ownership or source model, file/image/code/text authenticity, EEA/UK/Swiss personal data over x402. MCP: planned; there is no public MCP server. Use the HTTP API.
+
+**Agent workflow.** Agents need no account and no person: create a short-lived namespace, then pay 0.01 USDC per healthy verification (positive or negative) via x402 on Base. Everything else an agent does in its namespace is free.
 
 1. `POST /v1/agent/namespaces` (no auth; JSON body, `{}` is enough) → store `capability` (shown once) and `expires_at` (default 24 h, max 72 h; activity does not extend it).
 2. `POST /v1/embed` with `X-Mnemo-Capability` → store `watermarked_vector` and `vector_uid`. Optional `parent` records a verified derivation.
 3. `POST /v1/verify` → `402` with a `PAYMENT-REQUIRED` header (x402 V2: exact, EIP-3009, USDC on eip155:8453, amount 10000, EIP-712 domain "USD Coin" / "2"). Pay, then resend the identical body with `PAYMENT-SIGNATURE` → `200`; a `200` on which the payment settled carries `PAYMENT-RESPONSE`. A `200` with `verified: false`, `vector_uid: null`, `policy_ok: false` is a healthy negative result (charged, final); decide on `verified`, not `policy_ok`. A `503 verification_unavailable` is not a result.
 4. `GET /v1/lineage/{vector_uid}` → verified chain (free).
-5. Optional, human-assisted (agents never need it): a person signed in at https://www.trymnemo.com/login promotes the namespace to a permanent account (`POST /v1/agent/namespace/promote` with the capability and that person's session token). Same ids and lineage; the account's plan retention applies.
+5. Optional, human-assisted (agents never need it): a person signed in at https://www.trymnemo.com/login promotes the namespace to a permanent account (`POST /v1/agent/namespace/promote` with the capability and that person's session token). Same ids and lineage; the account's plan retention applies. Promotion does not start the free trial: the issued API key uses the account's subscription plan.
 
 Leave `request_id` out of a paid verify: the payment identifies the operation, so every retry resends the identical body. Elsewhere `request_id` is optional and not scoped to your namespace: if you send one, use a fresh random UUID.
 
-## On errors
+**On errors.**
 
 - `503 verification_unavailable`: not charged. Resend the identical body with the same `PAYMENT-SIGNATURE`; do not pay again.
 - `409 request_in_progress`: wait a moment, then resend the identical body with the same `PAYMENT-SIGNATURE`. `409 Duplicate request_id`: use a new `request_id`, or leave it out.
@@ -32,26 +32,40 @@ Leave `request_id` out of a paid verify: the payment identifies the operation, s
 - `401` after `expires_at`, `410 EPHEMERAL_NAMESPACE_EXPIRED`: the namespace is gone; create a new one.
 - `404` on `POST /v1/agent/namespaces`: accountless access is not enabled on this deployment.
 
-## Not in v1
-
-- MCP: planned; there is no public MCP server. Use the HTTP API.
-
-## Commercial terms
+**Commercial terms.** Calls with an account API key use that account's subscription plan, not x402: included monthly verifications, no automatic overage, no top-ups; see Pricing.
 
 - Free trial (accounts only): at most 30 days, 10,000 verifications in total, ending earlier when that allowance is used. Not a perpetual free plan; no rollover, no top-up, no automatic overage and no x402 fallback.
 - Paid plans: monthly included verification allowance that resets each billing period; no automatic overage charges; renew monthly until cancelled.
 - API-key calls never fall back to x402.
 - x402 entitlement (a settled payment whose verification could not be executed): bound to that namespace, non-transferable, non-redeemable for money or any asset, and expires with the namespace.
 
+**Legal.** Terms version: 2026-10-12. Security reports: security@trymnemo.com. Governing law: State of Wyoming, USA. The Mnemo technology is patent pending. Licensing: the MIT License applies only to the example files listed in examples/LICENSE of the Mnemo SDK repository (https://github.com/MnemoProtocol/mnemo-sdk/blob/main/examples/LICENSE); it does not cover the Services, the SDK or the protocol documentation.
+
+## Docs
+
+- [Agent protocol](https://www.trymnemo.com/agent-protocol.md): the complete contract — auth, lifecycle, pricing, x402, retries, lineage, promotion, retention, limits, errors
+- [OpenAPI 3.1](https://www.trymnemo.com/openapi.json): the six agent operations, with result semantics and examples
+- [Agent manifest](https://www.trymnemo.com/agent-manifest.json): machine-readable summary
+- [Example: curl](https://www.trymnemo.com/examples/agent-quickstart.sh): shell walkthrough of the accountless flow
+- [Example: Python](https://www.trymnemo.com/examples/agent_quickstart.py): accountless flow including the x402 payment
+
+## SDK and source
+
+- [Python SDK docs](https://www.trymnemo.com/docs/sdk): install, authenticate with `X-API-Key`, embed and verify with `MnemoClient`
+- [Python SDK on PyPI](https://pypi.org/project/mnemo-protocol/): `pip install mnemo-protocol`, imported as `mnemo_sdk`; account API-key client only (no x402, no lineage)
+- [Python SDK source](https://github.com/MnemoProtocol/mnemo-sdk): README, docs and changelog
+- [Agent protocol repository](https://github.com/MnemoProtocol/mnemo-agent-protocol): public copy of these agent files
+
 ## Legal
 
 - [Terms of Service](https://www.trymnemo.com/terms): Access to or use of the Mnemo API through an automated agent, application, script, SDK, protocol client, wallet, autonomous system, or other automated means constitutes access to and use of the Services by the person or entity that operates, controls, authorizes, deploys, or causes that system to access the Services, and acceptance of the Mnemo Terms of Service (Terms 1.2 and 1.5).
-- Terms version: 2026-10-12 ([this version](https://www.trymnemo.com/terms/versions/2026-10-12); [all versions](https://www.trymnemo.com/terms/versions))
+- [Terms version 2026-10-12](https://www.trymnemo.com/terms/versions/2026-10-12): the version in force
+- [All Terms versions](https://www.trymnemo.com/terms/versions)
 - [Privacy Policy](https://www.trymnemo.com/privacy)
 - [Data Processing Addendum](https://www.trymnemo.com/dpa): applies automatically when Mnemo processes personal data in Customer Content as a processor. For EEA, UK or Swiss personal data that needs a restricted-transfer mechanism, the EU SCCs (Module Two or Three) or UK Addendum must be completed first: contact legal@trymnemo.com. Accountless (x402) access must not be used for personal data subject to EEA, UK or Swiss data protection law.
 - [Subprocessors](https://www.trymnemo.com/subprocessors)
-- Security reports: security@trymnemo.com
-- [Pricing](https://www.trymnemo.com/pricing)
-- Governing law: State of Wyoming, USA
-- The Mnemo technology is patent pending.
-- Licensing: the MIT License applies only to the example files listed in examples/LICENSE of the Mnemo SDK repository (https://github.com/MnemoProtocol/mnemo-sdk/blob/main/examples/LICENSE); it does not cover the Services, the SDK or the protocol documentation.
+- [Security policy](https://github.com/MnemoProtocol/mnemo-agent-protocol/blob/main/SECURITY.md): report vulnerabilities to security@trymnemo.com
+
+## Optional
+
+- [Pricing](https://www.trymnemo.com/pricing): account plans, the free trial and the accountless price

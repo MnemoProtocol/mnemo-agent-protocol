@@ -1,6 +1,7 @@
 {
   "name": "Mnemo Agent API",
-  "description": "Verifiable identity for embedding vectors. Agents create a short-lived namespace without an account, embed vectors, read verified lineage, and pay per verification with USDC via x402 on Base.",
+  "description": "HTTP API that gives embedding vectors a verifiable identity: embed (watermarked copy + vector_uid), verify (does this vector resolve to an object registered to your own namespace or account?), and lineage of parents you name at embed. Accountless: 0.01 USDC per verify via x402 on Base; API keys: subscription, never x402. Own Mnemo-embedded vectors only; not a vector DB; no truth, authorship or ownership claims.",
+  "disambiguation": "Mnemo here is the embedding-vector provenance API at trymnemo.com (GitHub MnemoProtocol; PyPI mnemo-protocol, imported as mnemo_sdk). It is not the unrelated PyPI packages mnemo, mnemo-sdk, mnemo-ai or mnemo-mcp, and not an AI-memory app or MCP server.",
   "website": "https://www.trymnemo.com",
   "api_base": "https://api.trymnemo.com",
   "documentation": "https://www.trymnemo.com/agent-protocol.md",
@@ -9,6 +10,32 @@
   "examples": [
     "https://www.trymnemo.com/examples/agent-quickstart.sh",
     "https://www.trymnemo.com/examples/agent_quickstart.py"
+  ],
+  "sdk": {
+    "language": "python",
+    "distribution": "mnemo-protocol",
+    "install": "pip install mnemo-protocol",
+    "import": "from mnemo_sdk import MnemoClient",
+    "scope": "account API-key path only (X-API-Key); no x402, no lineage",
+    "docs": "https://www.trymnemo.com/docs/sdk",
+    "pypi": "https://pypi.org/project/mnemo-protocol/",
+    "repository": "https://github.com/MnemoProtocol/mnemo-sdk"
+  },
+  "protocol_repository": "https://github.com/MnemoProtocol/mnemo-agent-protocol",
+  "results": {
+    "verify_scope": "Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. It cannot show whether a vector belongs to another party.",
+    "verified_true": "The vector resolved to an object registered to the caller's namespace or account; vector_uid is that object's id.",
+    "verified_false": "Attribution to one of the caller's registered objects could not be shown. A safe, charged outcome, not an error, and not proof that the vector belongs to someone else.",
+    "confidence": "Diagnostic, not a probability. Decide on verified.",
+    "embed_output": "watermarked_vector is a measurably perturbed, unit-length watermarked copy of the FP32 input; store and use it in place of the original."
+  },
+  "not_for": [
+    "vectors not embedded through Mnemo in your own namespace or account",
+    "checking whether a vector belongs to another party",
+    "generating embeddings, vector storage or similarity search",
+    "judging the truth, authorship, ownership or source model of content",
+    "file, image, code or text authenticity",
+    "personal data subject to EEA, UK or Swiss data protection law over accountless (x402) access"
   ],
   "availability": "If POST /v1/agent/namespaces answers 404, accountless access is not enabled on this deployment.",
   "pricing": {
@@ -52,8 +79,8 @@
     { "operation": "GET /v1/agent/namespace", "auth": "capability", "cost": "free", "summary": "state, expiry, usage, limits" },
     { "operation": "POST /v1/embed", "auth": "capability or API key", "cost": "free", "summary": "watermark and register a vector; optional verified parent" },
     { "operation": "GET /v1/lineage/{vector_uid}", "auth": "capability or API key", "cost": "free", "summary": "verified derivation chain" },
-    { "operation": "POST /v1/verify", "auth": "capability (paid) or API key", "cost": "with a capability: 0.01 USDC per healthy verification (x402); with an API key: the account's plan, never x402", "summary": "is this vector one of this namespace's objects" },
-    { "operation": "POST /v1/agent/namespace/promote", "auth": "capability and human session", "cost": "free", "summary": "optional, human-assisted handoff (agents never need it): promote to a permanent account; identities and lineage preserved" }
+    { "operation": "POST /v1/verify", "auth": "capability (paid) or API key", "cost": "with a capability: 0.01 USDC per healthy verification (x402); with an API key: the account's plan, never x402", "summary": "does this vector resolve to an object registered to this namespace or account" },
+    { "operation": "POST /v1/agent/namespace/promote", "auth": "capability and human session", "cost": "free", "summary": "optional, human-assisted handoff (agents never need it): promote to a permanent account; identities and lineage preserved; does not start the free trial (the issued API key uses the account's subscription plan)" }
   ],
   "limits": {
     "requests_per_minute_per_namespace": 120,

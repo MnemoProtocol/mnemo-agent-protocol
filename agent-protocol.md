@@ -1,17 +1,30 @@
 # Mnemo Agent API — protocol v1
 
 Mnemo gives an embedding vector a verifiable identity. You **embed** a vector and get back a watermarked copy with a
-stable `vector_uid`; later, anyone holding a vector can **verify** whether it is one of yours, and you can read its
-**lineage** (what it was derived from). Autonomous agents use Mnemo without an account and without a person: they
-create a short-lived namespace, work in it, and pay per verification with USDC over [x402](https://x402.org).
+stable `vector_uid`. Later, you — with the same namespace capability or account API key — can **verify** a vector you
+hold: Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or
+namespace. You can also read an object's **lineage** (what it was derived from). Results are scoped to your own account
+or namespace: verify cannot tell you whether a vector belongs to someone else, and Mnemo does not establish the truth,
+authorship or ownership of the content a vector represents. Autonomous agents use Mnemo without an account and without
+a person: they create a short-lived namespace, work in it, and pay per verification with USDC over
+[x402](https://x402.org).
 Optionally, a signed-in person can later promote the namespace to a permanent account (a human-assisted handoff, §8).
 
 - API base: `https://api.trymnemo.com`
 - Machine-readable contract: [`openapi.json`](https://www.trymnemo.com/openapi.json) (OpenAPI 3.1, the six operations below)
 - Orientation for agents: [`llms.txt`](https://www.trymnemo.com/llms.txt) · manifest: [`agent-manifest.json`](https://www.trymnemo.com/agent-manifest.json)
 - Human sign-in (promotion, accounts, API keys): `https://www.trymnemo.com/login`
+- Python SDK for the account API-key path (no x402, no lineage): `pip install mnemo-protocol`, imported as
+  `from mnemo_sdk import MnemoClient` ([PyPI](https://pypi.org/project/mnemo-protocol/),
+  [source](https://github.com/MnemoProtocol/mnemo-sdk))
 
 If `POST /v1/agent/namespaces` answers `404`, accountless access is not enabled on that deployment.
+
+**When not to use Mnemo.** It is not for vectors that were not embedded through Mnemo in your own namespace or account;
+not for checking whether a vector belongs to another party; not an embedding model, a vector database or similarity
+search; not for judging the truth, authorship, ownership or source model of content, or the authenticity of files,
+images, code or text. Accountless (x402) access must not be used for personal data subject to EEA, UK or Swiss data
+protection law.
 
 ---
 
@@ -25,7 +38,7 @@ If `POST /v1/agent/namespaces` answers `404`, accountless access is not enabled 
 | Network / asset | Base mainnet (`eip155:8453`) / USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 | What is charged | one **healthy completed** `POST /v1/verify` = one verification, `verified: true` **or** `verified: false` |
 | Free | creating and reading a namespace, embedding, lineage reads, promotion, refused or malformed requests, rate-limited requests, and any verification Mnemo fails to complete (`503`) |
-| Included free verifications | none for an accountless namespace. A promoted namespace becomes an ordinary account on the free trial: up to 30 days with 10,000 verifications in total, ending after 30 days or when that allowance is used, whichever comes first (not a perpetual free plan; no x402 fallback) |
+| Included free verifications | none for an accountless namespace, and none after promotion: promoting a namespace does not start the free trial. The promoted account's API key uses the account's subscription plan; until the account has one, its calls can be refused with `402 {"code": "insufficient_credits"}` (no x402 fallback, §8) |
 
 Each payment buys exactly one verification. A verification Mnemo fails to complete costs nothing, and the payment stays
 usable for the retry (§6). A replay of a request you already paid for creates no second payment, credit or charge.
@@ -55,13 +68,24 @@ a missing capability or a missing human session there answers `401` (§8).
 
 All bodies are JSON. Vectors are arrays of 512–4096 finite numbers.
 
+**Vector contract.** You supply the vector; Mnemo does not compute embeddings, and `model_id` is a label you declare,
+not something Mnemo runs or attests.
+
+- **Input**: the FP32 embedding your model produced, 512–4096 finite numbers. Unit-norm (L2-normalized) input is the
+  expected form; Mnemo L2-normalizes whatever it receives before watermarking.
+- **Output**: `watermarked_vector` is a unit-length watermarked copy of your input with the same number of dimensions.
+  It is **measurably perturbed** from your input — not your original vector. Store and use this copy in place of the
+  original: it is the vector to keep and verify. Similarity scores computed with it differ from scores computed with the
+  original, so re-check any thresholds you tuned on the originals.
+- **Verify** the copy you stored. A vector changed too much after embedding can come back as a healthy negative (§3.5).
+
 | # | Method | Path | Auth | Cost | Purpose |
 |---|---|---|---|---|---|
 | 1 | POST | `/v1/agent/namespaces` | none | free | create an ephemeral namespace; returns the capability once |
 | 2 | GET | `/v1/agent/namespace` | capability | free | namespace state, expiry, usage and limits |
 | 3 | POST | `/v1/embed` | capability or API key | free | watermark a vector and register it; optional verified `parent` |
 | 4 | GET | `/v1/lineage/{vector_uid}` | capability or API key | free | the verified derivation chain of an object |
-| 5 | POST | `/v1/verify` | capability (paid) or API key | with a capability: 0.01 USDC per healthy verification (x402); with an API key: the account's plan, never x402 | is this vector one of this namespace's objects? |
+| 5 | POST | `/v1/verify` | capability (paid) or API key | with a capability: 0.01 USDC per healthy verification (x402); with an API key: the account's plan, never x402 | does this vector resolve to an object registered to this namespace or account? |
 | 6 | POST | `/v1/agent/namespace/promote` | capability **and** human session | free | optional, human-assisted: turn the namespace into a permanent account; identities and lineage preserved |
 
 ### 3.1 Create a namespace — `POST /v1/agent/namespaces`
@@ -103,7 +127,8 @@ Returns `tenant_id`, `storage_class`, `durable`, `state`, `expires_at`, `seconds
  "request_id": "0b6f8f3e-3c55-4f0e-9c1a-7d2b6a4e9f10"}
 ```
 
-`200`: `vector_uid`, `watermarked_vector` (store **this** vector, not your original — it carries the identity),
+`200`: `vector_uid`, `watermarked_vector` (a measurably perturbed, unit-length watermarked copy of your input: store and
+use **this** vector, not your original — it carries the identity; see the vector contract above),
 `created_at`, `dimensions`, and on a namespace also `namespace_expires_at` and `namespace_state`. Optional fields:
 `parent` (§7) → response `lineage {parent_uid, relation, depth}`; `subject` (a `{subject_uri, subject_type}` description
 of what the vector represents) → response `subject_proof`, which you pass back unchanged as `subject_proof` on verify.
@@ -128,11 +153,18 @@ body (§6).
  "signals": {"mode": "STRICT"}, "lineage": {"has_parent": false, "parent_uid": null, "depth": 0}}
 ```
 
+`verified: true` means the vector resolved to an object registered to this namespace or account; `vector_uid` is that
+object's id. It says nothing about the content the vector represents: not its truth, authorship or ownership.
+
 A `200` with `verified: false`, `vector_uid: null`, `policy_ok: false` and `lineage: null` is a **healthy negative
-result**: the verification ran and the vector is not one of this namespace's objects. It is charged like a positive
-one; do not pay again for the same vector. Decide on `verified`: `policy_ok` is a separate policy signal, always
-`false` on a negative and not a verdict on its own. `lineage`
-is present only for a verified object (`null` means unknown, not "root"). `signals` is diagnostic metadata about how
+result**: the verification ran, and attribution to one of this namespace's or account's registered objects could not be
+shown — for example the vector was never embedded here, it was changed too much after embedding, or its object's
+retention has ended (§9). It is a safe outcome, not an error, and not proof that the vector belongs to someone else. It
+is charged like a positive one; do not pay again for the same vector. Decide on `verified`: `policy_ok` is a separate
+policy signal, always `false` on a negative and not a verdict on its own. `confidence` is a diagnostic score that
+accompanies the verdict; it is not a probability and not a threshold to apply yourself. `lineage`
+is present only for a verified object (`null` means unknown, not "root"); it is read from the object's record and not
+re-verified (use §3.4 for the verified chain). `signals` is diagnostic metadata about how
 the result was reached; it is informational and its fields may change. A verification Mnemo could not complete is never
 a `200`: it is `503 {"code": "verification_unavailable"}`, carries no result, costs nothing, and is retried (§6).
 
@@ -284,6 +316,9 @@ the child; otherwise `403 LINEAGE_PARENT_NOT_VERIFIED`. Chains are at most 64 de
 `GET /v1/lineage/{vector_uid}` re-verifies the chain on every read and returns `{vector_uid, chain_ok: true, complete,
 depth, ancestors: [{vector_uid, relation}, …]}` (parent first), or `409` with `chain_ok: false` and an `error` when a link
 does not verify. An object that does not exist or is not yours is `404 LINEAGE_NOT_FOUND`. Lineage reads are free.
+`complete: true` means the walk reached the root; `depth` is the number of ancestors returned. A broken chain is never
+complete. A `200` with `complete: false` carries `truncated: true`: the read stopped at the depth limit. Lineage records
+the parents you named and Mnemo verified at embed time; it does not describe what the transformation did.
 
 ## 8. Promotion (optional, human-assisted)
 
@@ -324,7 +359,10 @@ example `503 PROMOTION_FAILED`), check `GET /v1/agent/namespace`:
 - `401`: the capability no longer authenticates. Either the promotion was completed (data kept) or the namespace
   expired before promotion began (data purged); this API does not tell the two apart.
 
-Promotion is free.
+Promotion is free. It does not start the free trial and includes no verifications: the issued API key uses the
+account's subscription plan ([pricing](https://www.trymnemo.com/pricing)), and until the account has one its calls can
+be refused with `402 {"code": "insufficient_credits"}`, without `PAYMENT-REQUIRED` (§1). The promotion response's
+`tier` and `retention_seconds` state the plan and retention the account starts with.
 
 Promotion does not mean indefinite retention: the account's objects follow the retention of its plan (§9).
 
@@ -342,6 +380,7 @@ promotion:
 | Pro (legacy) | 365 days |
 | Enterprise | indefinite |
 
+A promoted account without a plan keeps objects for the `retention_seconds` stated in the promotion response (§8).
 Upgrading later does not extend the retention of objects already stored. After an object's retention ends, verifying it
 returns `verified: false` (a healthy negative result). Its lineage records may remain readable, but that is not
 guaranteed. An ephemeral namespace that is not promoted keeps nothing after `expires_at` (§4).

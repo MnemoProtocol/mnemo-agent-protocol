@@ -1,6 +1,6 @@
 # Mnemo Agent API — public protocol
 
-**Mnemo (trymnemo.com) watermarks embedding vectors and checks them later. This repository is the public HTTP contract for its accountless Agent API at `https://api.trymnemo.com`.**
+**Mnemo (trymnemo.com) watermarks embedding vectors and checks whether a vector was issued to your own account or namespace. This repository is the public HTTP contract for its accountless Agent API at `https://api.trymnemo.com`.**
 
 ## What this repository is
 
@@ -8,12 +8,12 @@ The public contract for the **accountless Mnemo Agent API**. An agent with no ac
 
 1. **Namespace** — `POST /v1/agent/namespaces` creates a short-lived namespace (default 24 h, at most 72 h) and returns a capability once; send it as `X-Mnemo-Capability`.
 2. **Embed** — `POST /v1/embed` returns a measurably perturbed watermarked copy of your vector and a `vector_uid`. Free.
-3. **Lineage** — `GET /v1/lineage/{vector_uid}` returns the verified derivation chain recorded with `parent` at embed time. Free.
-4. **Verify (paid)** — `POST /v1/verify` answers `402` with `PAYMENT-REQUIRED`; pay via x402 on Base and resend the identical body with `PAYMENT-SIGNATURE`. Each completed verification, positive or negative, costs 0.01 USDC (see §1 of [`agent-protocol.md`](agent-protocol.md)).
+3. **Lineage** — `GET /v1/lineage/{vector_uid}` returns the chain of parents you named with `parent` at embed time, each verified as yours; it does not check what the transformation did. Free.
+4. **Verify (paid)** — `POST /v1/verify` answers `402` with `PAYMENT-REQUIRED`; pay via x402 on Base and resend the identical body with `PAYMENT-SIGNATURE`. Each healthy verification, positive or negative, costs 0.01 USDC (see §1 of [`agent-protocol.md`](agent-protocol.md)).
 
 **Scope of verify.** Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. `verified: false` is a normal, charged result; it is not a statement about who else may have registered the vector.
 
-`agent-protocol.md` is the reference when anything here differs.
+`agent-protocol.md` is the reference for request/response details and pricing when anything here differs.
 
 ## Have an account API key? Use the Python SDK instead
 
@@ -31,7 +31,6 @@ client = MnemoClient(api_key="your-api-key")
 
 - SDK repository: https://github.com/MnemoProtocol/mnemo-sdk
 - PyPI: https://pypi.org/project/mnemo-protocol/ (distribution `mnemo-protocol`, import `mnemo_sdk`)
-- SDK docs: https://www.trymnemo.com/docs/sdk?src=github
 
 The SDK does not implement accountless namespaces, lineage or x402; for those, use this contract over HTTP.
 
@@ -47,6 +46,8 @@ Mnemo here is the embedding-vector provenance API at trymnemo.com (GitHub MnemoP
 | `agent-manifest.json` | [agent-manifest.json](agent-manifest.json) | https://www.trymnemo.com/agent-manifest.json | machine-readable manifest |
 | `examples/agent-quickstart.sh` | [examples/agent-quickstart.sh](examples/agent-quickstart.sh) | https://www.trymnemo.com/examples/agent-quickstart.sh | end-to-end walkthrough with curl (placeholders only) |
 | `examples/agent_quickstart.py` | [examples/agent_quickstart.py](examples/agent_quickstart.py) | https://www.trymnemo.com/examples/agent_quickstart.py | the same in Python, including the paid verify (placeholders only) |
+
+Paying with `examples/agent_quickstart.py` needs Python 3.10+ (`pip install "x402[evm]==2.22.0"`); steps without payment need only the standard library.
 
 ## When not to use Mnemo
 

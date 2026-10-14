@@ -2,13 +2,14 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Mnemo Agent API",
+    "summary": "Embedding-vector provenance: embed (watermark and register), verify against your own registered objects, read lineage. API key or x402 per verify.",
     "version": "1.0.0",
     "termsOfService": "https://www.trymnemo.com/terms",
     "contact": {
       "name": "Mnemo",
       "url": "https://www.trymnemo.com"
     },
-    "description": "Accountless agent access to Mnemo: create a short-lived namespace, embed, read lineage, verify (0.01 USDC per healthy verification via x402 on Base), and optionally, with a signed-in person, promote to a permanent account. Protocol: https://www.trymnemo.com/agent-protocol.md",
+    "description": "Mnemo gives embedding vectors a verifiable identity. Embed accepts a 512-4096-dimension vector you supply and returns a measurably perturbed, unit-length watermarked copy and a vector_uid; store and use the copy. Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. verified=false is a normal, charged result meaning attribution could not be shown; it is not an error and not proof that the vector belongs to someone else. Embed may name a parent the caller owns; lineage returns that verified chain, not what the transformation did. Accountless callers use X-Mnemo-Capability and pay 0.01 USDC per verify via x402 on Base (eip155:8453); embed and lineage are free. API-key callers use X-API-Key and their subscription, never x402.\n\nWhen it applies: you embedded vectors through Mnemo and later need to check whether a vector you hold resolves to one of your own registered objects, or to read the lineage you recorded at embed time.\n\nWhen it does not: Mnemo is not an embedding model, a vector database or similarity search. Verify is scoped to the caller's own account or namespace and cannot show whether a vector belongs to another party. Mnemo is not proof of the truth of content, of file authenticity, of authorship or ownership, or of the integrity of arbitrary content.\n\nProtocol: https://www.trymnemo.com/agent-protocol.md\nPython SDK for the API-key path: https://www.trymnemo.com/docs/sdk (pip install mnemo-protocol; from mnemo_sdk import MnemoClient; https://pypi.org/project/mnemo-protocol/; https://github.com/MnemoProtocol/mnemo-sdk)",
     "x-mnemo-legal": {
       "terms_of_service": "https://www.trymnemo.com/terms",
       "terms_version": "2026-10-12",
@@ -30,6 +31,10 @@
       }
     }
   },
+  "externalDocs": {
+    "description": "Mnemo Agent API protocol v1: the normative contract (auth, pricing, x402, retries, lineage, promotion, retention, limits, errors)",
+    "url": "https://www.trymnemo.com/agent-protocol.md"
+  },
   "servers": [
     {
       "url": "https://api.trymnemo.com"
@@ -37,10 +42,16 @@
   ],
   "tags": [
     {
-      "name": "Namespace"
+      "name": "Namespace",
+      "description": "Accountless, short-lived namespaces authenticated by a capability (X-Mnemo-Capability), and optional human-assisted promotion to an account."
     },
     {
-      "name": "Objects"
+      "name": "Objects",
+      "description": "Embed (watermark and register) embedding vectors you supply, verify them against your own registered objects, and read their verified lineage.",
+      "externalDocs": {
+        "description": "Python SDK for the account API-key path (mnemo-protocol)",
+        "url": "https://www.trymnemo.com/docs/sdk"
+      }
     }
   ],
   "paths": {
@@ -212,7 +223,7 @@
             "apiKey": []
           }
         ],
-        "description": "Free. Store the returned `watermarked_vector`. An optional `parent` records a verified derivation.",
+        "description": "You supply the vector; Mnemo does not compute embeddings. Returns `watermarked_vector`, a measurably perturbed, unit-length watermarked copy of your input, and its `vector_uid`: store and use the copy in place of your original. Free with a namespace capability. An optional `parent` records a verified derivation. With an account API key the account's plan applies: a free-tier account whose free trial has ended and that holds no other entitlement gets 402 `insufficient_credits` without PAYMENT-REQUIRED.",
         "requestBody": {
           "required": true,
           "content": {
@@ -240,12 +251,39 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorDetail"
+                },
+                "example": {
+                  "detail": {
+                    "code": "vector_dimension_unsupported",
+                    "message": "Vector dimension 384 is unsupported. Minimum supported public dimension is 512, maximum is 4096.",
+                    "min_dimensions": 512,
+                    "max_dimensions": 4096,
+                    "received_dimensions": 384
+                  }
                 }
               }
             }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "description": "Account API key only: a free-tier account whose free trial has ended (or that has no trial record where the deployment requires one) and that holds no other entitlement. Body is exactly `{\"code\": \"insufficient_credits\"}`; there is no PAYMENT-REQUIRED header and x402 is never offered to an API key. Never returned to a namespace capability.",
+            "headers": {
+              "Link": {
+                "$ref": "#/components/headers/TermsLink"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingError"
+                },
+                "example": {
+                  "code": "insufficient_credits"
+                }
+              }
+            }
           },
           "403": {
             "description": "No credential at all (`Authentication required`), `LINEAGE_PARENT_NOT_VERIFIED`, or this credential may not embed here.",
@@ -314,7 +352,7 @@
             "apiKey": []
           }
         ],
-        "description": "Re-verified on every read. Free.",
+        "description": "The verified derivation chain of an object of the caller's own namespace or account, parent first. Every link is re-verified on every read. It records the parents named at embed time, not what a transformation did. Free.",
         "parameters": [
           {
             "name": "vector_uid",
@@ -322,16 +360,44 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "The `vector_uid` returned by embed for an object of the caller's own namespace or account."
           }
         ],
         "responses": {
           "200": {
-            "description": "Complete, verified chain.",
+            "description": "Chain read with every link re-verified (`chain_ok: true`). `complete: true` when the walk reached the root; a read that stopped at the depth limit has `complete: false` and `truncated: true`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LineageResponse"
+                },
+                "examples": {
+                  "complete_chain": {
+                    "summary": "A derived object with one verified parent",
+                    "value": {
+                      "vector_uid": "EXAMPLE-CHILD-UID",
+                      "chain_ok": true,
+                      "complete": true,
+                      "depth": 1,
+                      "ancestors": [
+                        {
+                          "vector_uid": "EXAMPLE-PARENT-UID",
+                          "relation": "summary"
+                        }
+                      ]
+                    }
+                  },
+                  "root": {
+                    "summary": "An object embedded without a parent",
+                    "value": {
+                      "vector_uid": "EXAMPLE-VECTOR-UID",
+                      "chain_ok": true,
+                      "complete": true,
+                      "depth": 0,
+                      "ancestors": []
+                    }
+                  }
                 }
               }
             }
@@ -353,11 +419,27 @@
             }
           },
           "409": {
-            "description": "Broken chain: `chain_ok` is false and `error` says why.",
+            "description": "Broken chain: a link failed re-verification. `chain_ok` and `complete` are false and `error` says which check failed. A broken chain is never complete.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LineageResponse"
+                },
+                "examples": {
+                  "broken_chain": {
+                    "summary": "A link failed re-verification",
+                    "value": {
+                      "vector_uid": "EXAMPLE-CHILD-UID",
+                      "chain_ok": false,
+                      "complete": false,
+                      "depth": 0,
+                      "ancestors": [],
+                      "error": {
+                        "code": "LINEAGE_INTEGRITY_VIOLATION",
+                        "message": "referenced parent state is absent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -381,7 +463,7 @@
     "/v1/verify": {
       "post": {
         "operationId": "verify",
-        "summary": "Verify a vector (paid)",
+        "summary": "Verify a vector against your own registered objects (paid)",
         "tags": [
           "Objects"
         ],
@@ -393,7 +475,7 @@
             "apiKey": []
           }
         ],
-        "description": "With a namespace capability: 0.01 USDC per healthy verification (positive or negative), paid via x402 on Base. Without a paid credit: 402 with PAYMENT-REQUIRED; pay and resend the same request with PAYMENT-SIGNATURE. A verification Mnemo cannot complete is 503 and costs nothing. With an account API key, verification uses the account's subscription plan (https://www.trymnemo.com/pricing): when its verifications are used up the answer is 402 insufficient_credits without PAYMENT-REQUIRED; x402 is never offered to an API key.",
+        "description": "Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. The result is scoped to the caller: it cannot show whether a vector belongs to another party, and it says nothing about the truth, authorship or ownership of the content. verified=false means attribution could not be shown (for example the vector was never embedded here, was changed too much after embedding, or its retention ended); it is a safe outcome, not an error. With a namespace capability: 0.01 USDC per healthy verification (positive or negative), paid via x402 on Base. Without a paid credit: 402 with PAYMENT-REQUIRED; pay and resend the same request with PAYMENT-SIGNATURE. A verification Mnemo cannot complete is 503 and costs nothing. With an account API key, verification uses the account's subscription plan (https://www.trymnemo.com/pricing): when its verifications are used up the answer is 402 insufficient_credits without PAYMENT-REQUIRED; x402 is never offered to an API key.",
         "x-payment": {
           "protocol": "x402",
           "x402Version": 2,
@@ -450,6 +532,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VerifyResponse"
+                },
+                "examples": {
+                  "positive": {
+                    "summary": "Resolved to one of the caller's registered objects (`signals` omitted here)",
+                    "value": {
+                      "verified": true,
+                      "confidence": 0.97,
+                      "vector_uid": "EXAMPLE-VECTOR-UID",
+                      "policy_ok": true,
+                      "lineage": {
+                        "has_parent": false,
+                        "parent_uid": null,
+                        "depth": 0
+                      }
+                    }
+                  },
+                  "healthy_negative": {
+                    "summary": "Charged, final, not an error (`signals` omitted here)",
+                    "value": {
+                      "verified": false,
+                      "confidence": 0.0,
+                      "vector_uid": null,
+                      "policy_ok": false,
+                      "lineage": null
+                    }
+                  }
                 }
               }
             }
@@ -460,6 +568,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorDetail"
+                },
+                "example": {
+                  "detail": {
+                    "code": "vector_dimension_unsupported",
+                    "message": "Vector dimension 384 is unsupported. Minimum supported public dimension is 512, maximum is 4096.",
+                    "min_dimensions": 512,
+                    "max_dimensions": 4096,
+                    "received_dimensions": 384
+                  }
                 }
               }
             }
@@ -566,7 +683,7 @@
             "humanSession": []
           }
         ],
-        "description": "Optional, human-assisted handoff; autonomous agents never need it. Needs BOTH the capability and a signed-in person's session (https://www.trymnemo.com/login). At least 5 minutes of lifetime must remain. Same tenant id, vector_uids and lineage. Free.",
+        "description": "Optional, human-assisted handoff; autonomous agents never need it. Needs BOTH the capability and a signed-in person's session (https://www.trymnemo.com/login). At least 5 minutes of lifetime must remain. Same tenant id, vector_uids and lineage. Free. Promotion does not start the free trial and includes no verifications: the issued API key uses the account's subscription plan (https://www.trymnemo.com/pricing), and x402 is never offered to it.",
         "responses": {
           "200": {
             "description": "Promoted. `credential` is shown once.",
@@ -574,6 +691,18 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PromoteResponse"
+                },
+                "example": {
+                  "tenant_id": "machine_ephem:EXAMPLE_TENANT_ID",
+                  "lifecycle_state": "PERSISTENT",
+                  "durable": true,
+                  "storage_class": "persistent",
+                  "object_count": 3,
+                  "tier": "free",
+                  "retention_seconds": 2592000,
+                  "already_persistent": false,
+                  "credential_id": "EXAMPLE-CREDENTIAL-ID",
+                  "credential": "EXAMPLE_ONE_TIME_API_KEY"
                 }
               }
             }
@@ -661,7 +790,7 @@
         "items": {
           "type": "number"
         },
-        "description": "An embedding: 512 to 4096 finite numbers."
+        "description": "An embedding your model produced: 512 to 4096 finite numbers. Send the FP32 values; unit-norm (L2-normalized) input is expected, and Mnemo L2-normalizes the input before watermarking. Mnemo does not generate embeddings."
       },
       "ErrorDetail": {
         "type": "object",
@@ -774,7 +903,8 @@
         ],
         "properties": {
           "tenant_id": {
-            "type": "string"
+            "type": "string",
+            "description": "Namespace identifier; unchanged by promotion."
           },
           "capability": {
             "type": "string",
@@ -787,7 +917,8 @@
             ]
           },
           "durable": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "false: an unpromoted namespace's data is purged at `expires_at`."
           },
           "state": {
             "type": "string",
@@ -797,16 +928,20 @@
           },
           "expires_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Fixed at creation; activity does not extend it. The capability stops authenticating at this instant and an unpromoted namespace's data is purged."
           },
           "ttl_seconds": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Lifetime granted, in seconds."
           },
           "object_limit": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Maximum objects in this namespace."
           },
           "byte_limit": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Maximum accounted bytes in this namespace (one object accounts for 4 x dimensions + 512 bytes, plus the size of its `subject`)."
           },
           "objects_used": {
             "type": "integer"
@@ -898,7 +1033,8 @@
             "format": "date-time"
           },
           "seconds_remaining": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Seconds until `expires_at`."
           },
           "objects_used": {
             "type": "integer"
@@ -932,7 +1068,8 @@
           "vector_uid": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 128
+            "maxLength": 128,
+            "description": "The parent object's `vector_uid` (an object of the same namespace or account)."
           },
           "relation": {
             "type": "string",
@@ -942,7 +1079,8 @@
               "chunk",
               "translation",
               "transform"
-            ]
+            ],
+            "description": "How this object was derived from the parent."
           },
           "vector": {
             "type": "array",
@@ -1002,21 +1140,25 @@
             "$ref": "#/components/schemas/Vector"
           },
           "model_id": {
-            "type": "string"
+            "type": "string",
+            "description": "Label for the model that produced `vector` (caller-declared free text, for example `text-embedding-3-small`). Mnemo does not run this model and does not attest it."
           },
           "model_version": {
             "type": "string",
-            "default": "1.0"
+            "default": "1.0",
+            "description": "Caller-declared label for the model version."
           },
           "request_id": {
             "type": "string",
             "description": "Optional. Not scoped to the namespace and kept 24 hours: use a fresh random UUID per request. A request that ran keeps it; reuse answers 409."
           },
           "parent": {
-            "$ref": "#/components/schemas/ParentRequest"
+            "$ref": "#/components/schemas/ParentRequest",
+            "description": "Optional: record that this object was derived from one of your own objects. The parent is verified before the child is created."
           },
           "subject": {
-            "$ref": "#/components/schemas/SubjectRequest"
+            "$ref": "#/components/schemas/SubjectRequest",
+            "description": "Optional description of what the vector represents."
           }
         }
       },
@@ -1029,13 +1171,16 @@
         ],
         "properties": {
           "parent_uid": {
-            "type": "string"
+            "type": "string",
+            "description": "The verified parent's `vector_uid`."
           },
           "relation": {
-            "type": "string"
+            "type": "string",
+            "description": "The relation recorded for this derivation."
           },
           "depth": {
-            "type": "integer"
+            "type": "integer",
+            "description": "This object's depth in its chain: the parent's depth + 1 (a root is 0)."
           }
         }
       },
@@ -1054,20 +1199,23 @@
         ],
         "properties": {
           "vector_uid": {
-            "type": "string"
+            "type": "string",
+            "description": "Identifier of the registered object. Use it with getLineage and as `parent.vector_uid`; verify returns it when a vector resolves to this object."
           },
           "watermarked_vector": {
             "type": "array",
             "items": {
               "type": "number"
             },
-            "description": "Store this vector; it carries the identity."
+            "description": "A measurably perturbed, unit-length watermarked copy of your input, with the same number of dimensions. Store and use it in place of your original: it carries the identity and is the vector that verifies."
           },
           "created_at": {
-            "type": "string"
+            "type": "string",
+            "description": "When the object was registered (ISO 8601, UTC)."
           },
           "dimensions": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Length of `watermarked_vector`; equals the input length."
           },
           "subject_proof": {
             "oneOf": [
@@ -1077,7 +1225,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Present only when a `subject` was supplied and accepted; pass it back unchanged as `subject_proof` on verify."
           },
           "lineage": {
             "oneOf": [
@@ -1087,20 +1236,23 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Present only when a `parent` was supplied and verified: the derivation recorded for this object."
           },
           "namespace_expires_at": {
             "type": [
               "string",
               "null"
             ],
-            "format": "date-time"
+            "format": "date-time",
+            "description": "With a namespace capability: the namespace's fixed `expires_at`. null with an API key."
           },
           "namespace_state": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "With a namespace capability: the namespace's lifecycle state. null with an API key."
           },
           "warning": {
             "oneOf": [
@@ -1110,7 +1262,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The one expiry warning of a namespace, attached once; null otherwise."
           }
         }
       },
@@ -1122,7 +1275,8 @@
         ],
         "properties": {
           "vector": {
-            "$ref": "#/components/schemas/Vector"
+            "$ref": "#/components/schemas/Vector",
+            "description": "The vector to check, as you stored it (the `watermarked_vector` from embed)."
           },
           "request_id": {
             "type": "string",
@@ -1141,16 +1295,19 @@
         ],
         "properties": {
           "has_parent": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "true when the object was embedded with a verified parent."
           },
           "parent_uid": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The parent's `vector_uid`; null for a root."
           },
           "depth": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Depth in the chain: 0 for a root, otherwise the parent's depth + 1."
           }
         }
       },
@@ -1165,16 +1322,18 @@
         "properties": {
           "verified": {
             "type": "boolean",
-            "description": "The verdict. true or false are both healthy results and both cost one verification. A healthy negative is `verified: false` with `vector_uid: null`, `policy_ok: false` and `lineage: null`; it is not an error. A verification that could not complete is never a 200: it is `503 verification_unavailable` and costs nothing."
+            "description": "The verdict. true: the vector resolved to an object registered to the caller's namespace or account (`vector_uid`). false: attribution to one of the caller's registered objects could not be shown; a safe outcome, not an error, and not proof that the vector belongs to someone else. true or false are both healthy results and both cost one verification. A healthy negative is `verified: false` with `vector_uid: null`, `policy_ok: false` and `lineage: null`; it is not an error. A verification that could not complete is never a 200: it is `503 verification_unavailable` and costs nothing."
           },
           "confidence": {
-            "type": "number"
+            "type": "number",
+            "description": "Diagnostic score accompanying the verdict. Not a probability and not a threshold to apply yourself: decide on `verified`."
           },
           "vector_uid": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "When `verified` is true: the `vector_uid` of the caller's registered object the vector resolved to. null when `verified` is false."
           },
           "policy_ok": {
             "type": "boolean",
@@ -1197,7 +1356,7 @@
                 "type": "null"
               }
             ],
-            "description": "Only for a verified object; null means unknown."
+            "description": "Only for a verified object: where it sits in its derivation chain, as recorded at embed time. Read from the object's record, not re-verified; use getLineage for the verified chain. null means unknown (not verified, lineage not enabled, or the record could not be read), never \"root\"."
           }
         }
       },
@@ -1209,10 +1368,12 @@
         ],
         "properties": {
           "vector_uid": {
-            "type": "string"
+            "type": "string",
+            "description": "The ancestor's `vector_uid`."
           },
           "relation": {
-            "type": "string"
+            "type": "string",
+            "description": "The relation recorded for this link."
           }
         }
       },
@@ -1227,16 +1388,20 @@
         ],
         "properties": {
           "vector_uid": {
-            "type": "string"
+            "type": "string",
+            "description": "The object whose chain was read."
           },
           "chain_ok": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "true (HTTP 200) when every link re-verified on this read; false (HTTP 409) when a link failed re-verification, with `error`."
           },
           "complete": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "true when the walk reached the root. false when the chain is broken (`chain_ok: false`) or the read stopped at the depth limit (`truncated: true`)."
           },
           "depth": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Number of ancestors returned."
           },
           "ancestors": {
             "type": "array",
@@ -1246,7 +1411,8 @@
             "description": "Parent first."
           },
           "truncated": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Present, and true, only when the read stopped at the depth limit before reaching the root; `complete` is then false. The links read up to that point are returned."
           },
           "error": {
             "type": "object",
@@ -1257,7 +1423,8 @@
               "message": {
                 "type": "string"
               }
-            }
+            },
+            "description": "Present only when `chain_ok` is false. `code` is machine-readable (for example `LINEAGE_INTEGRITY_VIOLATION`, a link that failed re-verification); `message` names the check that failed. Treat any `error` as a broken chain."
           }
         }
       },
@@ -1427,7 +1594,34 @@
               }
             }
           }
-        }
+        },
+        "examples": [
+          {
+            "x402Version": 2,
+            "error": "insufficient_credits",
+            "resource": {
+              "url": "/v1/verify",
+              "description": "Mnemo /v1/verify — one verification"
+            },
+            "accepts": [
+              {
+                "scheme": "exact",
+                "network": "eip155:8453",
+                "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "amount": "10000",
+                "payTo": "0xPAY_TO_FROM_THE_402",
+                "maxTimeoutSeconds": 120,
+                "extra": {
+                  "paymentFlow": "upfront",
+                  "assetTransferMethod": "eip3009",
+                  "decimals": 6,
+                  "name": "USD Coin",
+                  "version": "2"
+                }
+              }
+            ]
+          }
+        ]
       },
       "PaymentResponse": {
         "type": "object",
@@ -1462,13 +1656,13 @@
         }
       },
       "RetryAfter": {
-        "description": "Seconds to wait.",
+        "description": "Seconds to wait before retrying: 60 for the per-minute request limit, 3600 for the hourly namespace-creation limit.",
         "schema": {
           "type": "integer"
         }
       },
       "TermsLink": {
-        "description": "Terms notice: links the Terms of Service (rel=\"terms-of-service\") and the Privacy Policy (rel=\"privacy-policy\"). Sent on the 201 of namespace creation and on every accountless 402.",
+        "description": "Terms notice: links the Terms of Service (rel=\"terms-of-service\") and the Privacy Policy (rel=\"privacy-policy\"). Sent on every 402 response and on the 201 of namespace creation.",
         "schema": {
           "type": "string"
         },
@@ -1477,7 +1671,7 @@
     },
     "responses": {
       "Unauthorized": {
-        "description": "Invalid or expired credential: a capability that is unknown, revoked by a completed promotion, or past the namespace's `expires_at`; or an invalid API key.",
+        "description": "Invalid or expired credential: a capability that is unknown, revoked by a completed promotion, or past the namespace's `expires_at`; or an invalid API key (`Invalid API key`).",
         "content": {
           "application/json": {
             "schema": {
@@ -1487,7 +1681,7 @@
         }
       },
       "Forbidden": {
-        "description": "No credential at all (`Authentication required`), or this credential may not call this operation.",
+        "description": "No credential at all (`Authentication required`), a revoked API key (`API key revoked`), or this credential may not call this operation.",
         "content": {
           "application/json": {
             "schema": {
@@ -1507,7 +1701,7 @@
         }
       },
       "RateLimited": {
-        "description": "Rate limit: 120 requests per minute per namespace.",
+        "description": "Rate limit: 120 requests per minute per namespace (capability); with an account API key, the plan's per-minute limit. See Retry-After.",
         "content": {
           "application/json": {
             "schema": {
@@ -1537,13 +1731,13 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-Mnemo-Capability",
-        "description": "Namespace capability, returned once by createNamespace."
+        "description": "Accountless namespace capability, sent as X-Mnemo-Capability and returned once by createNamespace. No account and no subscription: verify with a capability is paid per call via x402 (0.01 USDC on Base, PAYMENT-REQUIRED / PAYMENT-SIGNATURE); every other operation is free. Stops authenticating at the namespace's `expires_at` or after a completed promotion."
       },
       "apiKey": {
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Account API key (a promoted namespace receives one)."
+        "description": "Account API key, sent as X-API-Key: created for an account in the dashboard, or issued once by promotion. Calls use the account's subscription plan (https://www.trymnemo.com/pricing). Never x402: a PAYMENT-SIGNATURE sent with an API key is ignored, and an account without entitlement gets 402 insufficient_credits without PAYMENT-REQUIRED. The Python SDK (mnemo-protocol) sends this header."
       },
       "humanSession": {
         "type": "http",

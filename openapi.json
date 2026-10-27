@@ -27,7 +27,7 @@
         "free_trial": "Accounts only. At most 30 days from activation, with 10,000 verifications in total; ends earlier when that allowance is used. Not a perpetual free plan. No rollover, no re-grant, no top-up, no automatic overage and no x402 fallback; never converts to a paid plan automatically.",
         "paid_plans": "Monthly plans with an included verification allowance that resets each billing period. No automatic overage charges and no top-ups. Plans renew monthly until cancelled.",
         "api_key_x402": "Calls authenticated with an account API key use the account's plan and never fall back to x402.",
-        "x402_entitlement": "If an x402 payment settles but the verification cannot be executed, a paid entitlement to one verification is recorded for that namespace. It is bound to the namespace, non-transferable, non-redeemable for money, USDC or any other asset, has no monetary value, and expires with the namespace."
+        "machine_payment_entitlement": "If a machine payment settles but the verification cannot be executed, a paid entitlement to one verification is recorded for that namespace. It is bound to the namespace, non-transferable, non-redeemable for money, USDC or any other asset, has no monetary value, and expires with the namespace."
       }
     }
   },

@@ -22,7 +22,7 @@ The public contract for the **accountless Mnemo Agent API**. An agent with no ac
 
 ## Have an account API key? Use the Python SDK instead
 
-Account holders call the same API with `X-API-Key` under their subscription plan (never x402). Use the official Python SDK:
+Account holders call the same API with `X-API-Key` under their subscription plan (never machine payments). Use the official Python SDK:
 
 ```bash
 pip install mnemo-protocol

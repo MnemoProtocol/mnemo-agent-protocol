@@ -8,6 +8,12 @@ Protocol: https://www.trymnemo.com/agent-protocol.md
 
 Every credential in this file is a placeholder. Mnemo never sees your wallet key: the x402
 client signs locally and sends only the signed authorization.
+
+This example pays with x402. It is one rail of several: the same 402 can also offer MPP on
+Tempo (USDC.e; pay with an MPP client and resend with `Authorization: Payment`), and
+POST /v1/agent/namespace/fund sells 500 verifications for 5.00 USD over x402, MPP Tempo or an
+MPP card. GET /v1/agent/namespace lists what can be bought now (payment_menu); see
+agent-protocol.md §5.
 """
 from __future__ import annotations
 

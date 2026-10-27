@@ -1,6 +1,6 @@
 # Mnemo
 
-> HTTP API that gives embedding vectors a verifiable identity. Embed returns a measurably perturbed watermarked copy and a vector_uid; store that copy. Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. Lineage returns verified parents you named at embed. API keys: subscription, never x402. Accountless namespaces pay 0.01 USDC per verify via x402 on Base. Not for similarity search or judging truth, authorship or ownership.
+> HTTP API that gives embedding vectors a verifiable identity. Embed returns a measurably perturbed watermarked copy and a vector_uid; store that copy. Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. Lineage returns verified parents you named at embed. API keys: subscription, never x402. Accountless namespaces pay 0.01 USD per verify via x402 (USDC on Base) or MPP on Tempo (USDC.e), or buy 500 verifications for 5.00 USD (x402, MPP Tempo, or a card through MPP and a Stripe Shared Payment Token). Not for similarity search or judging truth, authorship or ownership.
 
 API base: https://api.trymnemo.com
 
@@ -12,26 +12,32 @@ Mnemo here is the embedding-vector provenance API at trymnemo.com (GitHub MnemoP
 
 **Results.** Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. verified=true returns that object's vector_uid. verified=false is a normal, charged result meaning attribution could not be shown (for example the vector was never embedded here or was changed too much after embedding); it is a safe outcome, not an error, and not proof that the vector belongs to someone else. Verify cannot tell you whether a vector belongs to another party. `confidence` is diagnostic, not a probability; decide on `verified`. Embed returns a measurably perturbed, unit-length watermarked copy of your FP32 input: store and use that copy, not your original.
 
-**Not for:** vectors not embedded through Mnemo in your own namespace or account, checking another party's vectors, embedding generation or similarity search, judging truth, authorship, ownership or source model, file/image/code/text authenticity, EEA/UK/Swiss personal data over x402. MCP: planned; there is no public MCP server. Use the HTTP API.
+**Not for:** vectors not embedded through Mnemo in your own namespace or account, checking another party's vectors, embedding generation or similarity search, judging truth, authorship, ownership or source model, file/image/code/text authenticity, EEA/UK/Swiss personal data over accountless access (any payment rail). MCP: planned; there is no public MCP server. Use the HTTP API.
 
-**Agent workflow.** Agents need no account and no person: create a short-lived namespace, then pay 0.01 USDC per healthy verification (positive or negative) via x402 on Base. Everything else an agent does in its namespace is free.
+**Agent workflow.** Agents need no account and no person: create a short-lived namespace, then pay 0.01 USD per healthy verification (positive or negative) via x402 on Base or MPP on Tempo, or buy a 500-verification burst. Everything else an agent does in its namespace is free.
+
+**Offers and rails.** `single_verify`: 0.01 USD, one verification, bought at the `402` of `POST /v1/verify`; rails x402 (USDC, eip155:8453) and MPP Tempo (USDC.e, chain 4217). `burst_500`: 5.00 USD, 500 verifications usable for 14 days plus a 100,000,000-byte storage allowance, bought at `POST /v1/agent/namespace/fund`; rails x402, MPP Tempo, and MPP card via a Stripe Shared Payment Token. A card is never offered for `single_verify` (Stripe's minimum card charge rules out 0.01 USD). No rail is required. `GET /v1/agent/namespace` returns `payment_menu`: the offers and rails this namespace can buy right now. It is authoritative for discovery; each `402` challenge is authoritative for amount, asset and recipient.
 
 1. `POST /v1/agent/namespaces` (no auth; JSON body, `{}` is enough) → store `capability` (shown once) and `expires_at` (default 24 h, max 72 h; activity does not extend it).
 2. `POST /v1/embed` with `X-Mnemo-Capability` and a body with `vector` and `model_id` (both required; `model_id` is a label you declare) → store `watermarked_vector` and `vector_uid`. Optional `parent` records a verified derivation.
-3. `POST /v1/verify` → `402` with a `PAYMENT-REQUIRED` header (x402 V2: exact, EIP-3009, USDC on eip155:8453, amount 10000, EIP-712 domain "USD Coin" / "2"). Pay, then resend the identical body with `PAYMENT-SIGNATURE` → `200`; a `200` on which the payment settled carries `PAYMENT-RESPONSE`. A `200` with `verified: false`, `vector_uid: null`, `policy_ok: false` is a healthy negative result (charged, final); decide on `verified`, not `policy_ok`. A `503 verification_unavailable` is not a result.
+3. `POST /v1/verify` → `402` with the challenge of each accepting rail: a `PAYMENT-REQUIRED` header (x402 V2: exact, EIP-3009, USDC on eip155:8453, amount 10000, EIP-712 domain "USD Coin" / "2") and/or `WWW-Authenticate: Payment` (MPP method `tempo`: USDC.e on chain 4217, amount 10000; pay it with a standard MPP client such as mppx or pympp — the Tempo transfer must carry the attribution memo bound to the challenge, so never build it by hand). Pay one, then resend the identical body with `PAYMENT-SIGNATURE` (x402) or `Authorization: Payment` (MPP) → `200`; a `200` on which the payment settled carries `PAYMENT-RESPONSE` (x402) or `Payment-Receipt` (MPP). A `200` with `verified: false`, `vector_uid: null`, `policy_ok: false` is a healthy negative result (charged, final); decide on `verified`, not `policy_ok`. A `503 verification_unavailable` is not a result.
 4. `GET /v1/lineage/{vector_uid}` → verified chain (free). Each object has at most one parent, named at embed; Mnemo verifies it as yours before it creates the child (otherwise `403 LINEAGE_PARENT_NOT_VERIFIED`). Every read re-verifies each link (`409` when one no longer verifies). Lineage records the parents you named, not what the transformation did.
-5. Optional, human-assisted (agents never need it): a person signed in at https://www.trymnemo.com/login promotes the namespace to a permanent account (`POST /v1/agent/namespace/promote` with the capability and that person's session token). Same ids and lineage; the account's plan retention applies. Promotion does not start the free trial: the issued API key uses the account's subscription plan.
+5. Optional burst: `POST /v1/agent/namespace/fund` (capability, no body) → `402 payment_required` with the `burst_500` offer and every accepting rail's challenge (x402 amount 5000000; Tempo amount 5000000; card amount 500 USD cents). Pay one and resend → `200 {"offer": "burst_500", "credits_granted": 500, "funded_until": …}`. Verify then spends the burst credits. Credits expire at `funded_until` (14 days); a refill gives a fresh 500 (no stacking). For 24 hours after `funded_until` verify answers `402 funded_window_ended` and embed `410 EPHEMERAL_NAMESPACE_EXPIRED`, but the namespace is not gone: the capability works and data is kept through `retained_until`, and a refill reopens it (buy at least 15 minutes before `retained_until`; an unfunded namespace, 15 minutes before `expires_at`). `GET /v1/agent/namespace` returns `funded_until`, `retained_until` and `retained_seconds_remaining`. A funded namespace has a 100,000,000-byte storage allowance (and the same 10,000 objects) and is never sold a single verification. `503 funded_capacity_unavailable` (`Retry-After: 300`, no challenge): no burst can be sold now; nothing was charged. `payment_menu` can still list `burst_500` at that moment.
+6. Optional, human-assisted (agents never need it): a person signed in at https://www.trymnemo.com/login promotes the namespace to a permanent account (`POST /v1/agent/namespace/promote` with the capability and that person's session token). Same ids and lineage; the account's plan retention applies. Promotion does not start the free trial: the issued API key uses the account's subscription plan.
 
 Leave `request_id` out of a paid verify: the payment identifies the operation, so every retry resends the identical body. Elsewhere `request_id` is optional and not scoped to your namespace: if you send one, use a fresh random UUID.
 
 **On errors.**
 
-- `503 verification_unavailable`: not charged. Resend the identical body with the same `PAYMENT-SIGNATURE`; do not pay again.
+- `503 verification_unavailable`: not charged. Resend the identical body with the same `PAYMENT-SIGNATURE`; do not pay again. MPP: the same, with the same `Authorization: Payment` credential.
+- A completed paid request sent again with the same payment returns its stored result and grants nothing again; on `POST /v1/agent/namespace/fund` the same payment sent again returns the same `200` body.
+- `503 payment_processing` or `503 payment_unavailable` (`Retry-After: 30`): resend the same request with the same payment later; never pay again.
+- MPP `402` with a fresh `WWW-Authenticate` challenge and a problem `type` after you sent a credential: that credential was refused and bought nothing; paying the fresh challenge is a new payment.
 - `409 request_in_progress`: wait a moment, then resend the identical body with the same `PAYMENT-SIGNATURE`. `409 Duplicate request_id`: use a new `request_id`, or leave it out.
 - `402` without `PAYMENT-REQUIRED` after you paid: this request was not funded (refused, or settlement not final yet). Resend the identical body with the same `PAYMENT-SIGNATURE`, with backoff; stop 90 minutes after its `validBefore`. Never create a second authorization automatically: a new one is a second payment. If the first settles late, it becomes a credit that the next verify in this namespace (sent without `PAYMENT-SIGNATURE`) uses.
 - `429`: wait `Retry-After` (120 requests/min per namespace; 5 namespace creation requests per clock hour per source; requests then refused with `429` or `503` can count too).
 - `403` with no credential: send `X-Mnemo-Capability`. `401`: invalid or expired capability.
-- `401` after `expires_at`, `410 EPHEMERAL_NAMESPACE_EXPIRED`: the namespace is gone; create a new one.
+- `401` after `expires_at` (a funded namespace: after `retained_until`), `410 EPHEMERAL_NAMESPACE_EXPIRED`: the namespace is gone; create a new one. Exception: a funded namespace in its 24-hour grace answers `410` to embeds while `GET /v1/agent/namespace` still works — refill or promote it instead.
 - `404` on `POST /v1/agent/namespaces`: accountless access is not enabled on this deployment.
 
 **Commercial terms.** Calls with an account API key use that account's subscription plan, not x402: included monthly verifications, no automatic overage, no top-ups; see Pricing.
@@ -45,11 +51,12 @@ Leave `request_id` out of a paid verify: the payment identifies the operation, s
 
 ## Docs
 
-- [Agent protocol](https://www.trymnemo.com/agent-protocol.md): the complete contract — auth, lifecycle, pricing, x402, retries, lineage, promotion, retention, limits, errors
-- [OpenAPI 3.1](https://www.trymnemo.com/openapi.json): the six agent operations, with result semantics and examples
+- [Agent protocol](https://www.trymnemo.com/agent-protocol.md): the complete contract — auth, lifecycle, pricing, x402 and MPP payment, bursts, retries, lineage, promotion, retention, limits, errors
+- [OpenAPI 3.1](https://www.trymnemo.com/openapi.json): the seven agent operations, with result semantics and examples
+- [Agent skill](https://www.trymnemo.com/.well-known/skills/mnemo-vector-provenance/SKILL.md): installable skill for agents (`npx skills add https://www.trymnemo.com`)
 - [Agent manifest](https://www.trymnemo.com/agent-manifest.json): machine-readable summary
 - [Example: curl](https://www.trymnemo.com/examples/agent-quickstart.sh): shell walkthrough of the accountless flow
-- [Example: Python](https://www.trymnemo.com/examples/agent_quickstart.py): accountless flow including the x402 payment
+- [Example: Python](https://www.trymnemo.com/examples/agent_quickstart.py): accountless flow including an x402 payment (MPP is paid the same way with an MPP client)
 
 ## SDK and source
 
@@ -64,7 +71,7 @@ Leave `request_id` out of a paid verify: the payment identifies the operation, s
 - [Terms version 2026-10-12](https://www.trymnemo.com/terms/versions/2026-10-12): the version in force
 - [All Terms versions](https://www.trymnemo.com/terms/versions)
 - [Privacy Policy](https://www.trymnemo.com/privacy)
-- [Data Processing Addendum](https://www.trymnemo.com/dpa): applies automatically when Mnemo processes personal data in Customer Content as a processor. For EEA, UK or Swiss personal data that needs a restricted-transfer mechanism, the EU SCCs (Module Two or Three) or UK Addendum must be completed first: contact legal@trymnemo.com. Accountless (x402) access must not be used for personal data subject to EEA, UK or Swiss data protection law.
+- [Data Processing Addendum](https://www.trymnemo.com/dpa): applies automatically when Mnemo processes personal data in Customer Content as a processor. For EEA, UK or Swiss personal data that needs a restricted-transfer mechanism, the EU SCCs (Module Two or Three) or UK Addendum must be completed first: contact legal@trymnemo.com. Accountless access (any payment rail) must not be used for personal data subject to EEA, UK or Swiss data protection law.
 - [Subprocessors](https://www.trymnemo.com/subprocessors)
 - [Security policy](https://github.com/MnemoProtocol/mnemo-agent-protocol/blob/main/SECURITY.md): report vulnerabilities to security@trymnemo.com
 

@@ -2,14 +2,14 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Mnemo Agent API",
-    "summary": "Embedding-vector provenance: embed (watermark and register), verify against your own registered objects, read lineage. API key or x402 per verify.",
+    "summary": "Embedding-vector provenance: embed (watermark and register), verify against your own registered objects, read lineage. API key, or per verify / 500-verification burst over x402 or MPP.",
     "version": "1.0.0",
     "termsOfService": "https://www.trymnemo.com/terms",
     "contact": {
       "name": "Mnemo",
       "url": "https://www.trymnemo.com"
     },
-    "description": "Mnemo gives embedding vectors a verifiable identity. Embed accepts a 512-4096-dimension vector you supply and returns a measurably perturbed, unit-length watermarked copy and a vector_uid; store and use the copy. Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. verified=false is a normal, charged result meaning attribution could not be shown; it is not an error and not proof that the vector belongs to someone else. Embed may name a parent the caller owns; lineage returns that verified chain, not what the transformation did. Accountless callers use X-Mnemo-Capability and pay 0.01 USDC per verify via x402 on Base (eip155:8453); embed and lineage are free. API-key callers use X-API-Key and their subscription, never x402.\n\nWhen it applies: you embedded vectors through Mnemo and later need to check whether a vector you hold resolves to one of your own registered objects, or to read the lineage you recorded at embed time.\n\nWhen it does not: Mnemo is not an embedding model, a vector database or similarity search. Verify is scoped to the caller's own account or namespace and cannot show whether a vector belongs to another party. Mnemo is not proof of the truth of content, of file authenticity, of authorship or ownership, or of the integrity of arbitrary content.\n\nProtocol: https://www.trymnemo.com/agent-protocol.md\nPython SDK for the API-key path: https://www.trymnemo.com/docs/sdk (pip install mnemo-protocol; from mnemo_sdk import MnemoClient; https://pypi.org/project/mnemo-protocol/; https://github.com/MnemoProtocol/mnemo-sdk)",
+    "description": "Mnemo gives embedding vectors a verifiable identity. Embed accepts a 512-4096-dimension vector you supply and returns a measurably perturbed, unit-length watermarked copy and a vector_uid; store and use the copy. Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. verified=false is a normal, charged result meaning attribution could not be shown; it is not an error and not proof that the vector belongs to someone else. Embed may name a parent the caller owns; lineage returns that verified chain, not what the transformation did. Accountless callers use X-Mnemo-Capability and pay 0.01 USD per verify via x402 (USDC on Base, eip155:8453) or MPP on Tempo (USDC.e, eip155:4217), or buy 500 verifications for 5.00 USD at POST /v1/agent/namespace/fund (x402, MPP Tempo, or a card through MPP and a Stripe Shared Payment Token; a card is never offered for a single verification). GET /v1/agent/namespace returns payment_menu: the offers and rails the namespace can buy now. Embed and lineage are free. API-key callers use X-API-Key and their subscription, never x402.\n\nWhen it applies: you embedded vectors through Mnemo and later need to check whether a vector you hold resolves to one of your own registered objects, or to read the lineage you recorded at embed time.\n\nWhen it does not: Mnemo is not an embedding model, a vector database or similarity search. Verify is scoped to the caller's own account or namespace and cannot show whether a vector belongs to another party. Mnemo is not proof of the truth of content, of file authenticity, of authorship or ownership, or of the integrity of arbitrary content.\n\nProtocol: https://www.trymnemo.com/agent-protocol.md\nPython SDK for the API-key path: https://www.trymnemo.com/docs/sdk (pip install mnemo-protocol; from mnemo_sdk import MnemoClient; https://pypi.org/project/mnemo-protocol/; https://github.com/MnemoProtocol/mnemo-sdk)",
     "x-mnemo-legal": {
       "terms_of_service": "https://www.trymnemo.com/terms",
       "terms_version": "2026-10-12",
@@ -181,7 +181,7 @@
             "capability": []
           }
         ],
-        "description": "State, expiry, usage and limits. Free.",
+        "description": "State, expiry, usage and limits; on a funded namespace funded_until, retained_until and retained_seconds_remaining; and payment_menu, the offers and rails this namespace can buy now. Free.",
         "responses": {
           "200": {
             "description": "Status.",
@@ -296,17 +296,22 @@
             }
           },
           "409": {
-            "description": "`Duplicate request_id`, `LINEAGE_DEPTH_EXCEEDED` or `EPHEMERAL_NAMESPACE_PROMOTING`.",
+            "description": "`Duplicate request_id`, `LINEAGE_DEPTH_EXCEEDED`, `EPHEMERAL_NAMESPACE_PROMOTING`, or `funded_sale_pending` (a burst purchase for this namespace is completing; retry after Retry-After: 30).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
+            },
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
             }
           },
           "410": {
-            "description": "`EPHEMERAL_NAMESPACE_EXPIRED`.",
+            "description": "`EPHEMERAL_NAMESPACE_EXPIRED`. On a funded namespace this is also the answer during its 24-hour grace after funded_until: the namespace is not gone (GET /v1/agent/namespace still answers, data is kept until retained_until) and a refill reopens writes.",
             "content": {
               "application/json": {
                 "schema": {
@@ -316,7 +321,7 @@
             }
           },
           "413": {
-            "description": "`NAMESPACE_OBJECT_LIMIT`, `NAMESPACE_BYTE_LIMIT`, `GLOBAL_BYTE_LIMIT`, `SUBJECT_TOO_LARGE` or `REQUEST_BODY_TOO_LARGE` (256 KiB with a capability).",
+            "description": "`NAMESPACE_OBJECT_LIMIT`, `NAMESPACE_BYTE_LIMIT`, `GLOBAL_BYTE_LIMIT`, `SUBJECT_TOO_LARGE` or `REQUEST_BODY_TOO_LARGE` (256 KiB with a capability). On a funded namespace the 10,000-object and 100,000,000-byte limits answer `funded_storage_quota_exceeded` (limit, usage, retained_until; a refill does not raise the allowance).",
             "content": {
               "application/json": {
                 "schema": {
@@ -475,7 +480,7 @@
             "apiKey": []
           }
         ],
-        "description": "Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. The result is scoped to the caller: it cannot show whether a vector belongs to another party, and it says nothing about the truth, authorship or ownership of the content. verified=false means attribution could not be shown (for example the vector was never embedded here, was changed too much after embedding, or its retention ended); it is a safe outcome, not an error. With a namespace capability: 0.01 USDC per healthy verification (positive or negative), paid via x402 on Base. Without a paid credit: 402 with PAYMENT-REQUIRED; pay and resend the same request with PAYMENT-SIGNATURE. A verification Mnemo cannot complete is 503 and costs nothing. With an account API key, verification uses the account's subscription plan (https://www.trymnemo.com/pricing): when its verifications are used up the answer is 402 insufficient_credits without PAYMENT-REQUIRED; x402 is never offered to an API key.",
+        "description": "Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. The result is scoped to the caller: it cannot show whether a vector belongs to another party, and it says nothing about the truth, authorship or ownership of the content. verified=false means attribution could not be shown (for example the vector was never embedded here, was changed too much after embedding, or its retention ended); it is a safe outcome, not an error. With a namespace capability: 0.01 USD per healthy verification (positive or negative), paid at the 402 over any accepting rail — x402 on Base or MPP on Tempo (see the MPP note below). Without a paid credit: 402 with the challenge of each accepting rail (PAYMENT-REQUIRED and/or WWW-Authenticate: Payment); for x402, pay and resend the same request with PAYMENT-SIGNATURE. A verification Mnemo cannot complete is 503 and costs nothing. With an account API key, verification uses the account's subscription plan (https://www.trymnemo.com/pricing): when its verifications are used up the answer is 402 insufficient_credits without PAYMENT-REQUIRED; x402 is never offered to an API key.\n\nMPP (alternative to x402): when MPP is offered the 402 also carries `WWW-Authenticate: Payment` (method `tempo`, USDC.e on Tempo, amount 10000). Pay it with a standard MPP client (the Tempo transfer must carry the attribution memo bound to the challenge; never build it by hand) and resend the identical body with `Authorization: Payment <credential>`; the 200 then carries `Payment-Receipt`. An MPP payment that is not final yet answers `503 payment_processing` (Retry-After: 30): resend the same credential, never pay again. A refused MPP credential answers 402 with a problem `type` and a fresh challenge; it bought nothing. A card is never offered here (single_verify). A funded namespace (burst_500) verifies on its burst credits: `402 funded_window_ended` during the 24-hour grace and `402 funded_credits_exhausted` when its credits are used, both without a challenge.",
         "x-payment": {
           "protocol": "x402",
           "x402Version": 2,
@@ -526,6 +531,9 @@
             "headers": {
               "PAYMENT-RESPONSE": {
                 "$ref": "#/components/headers/PaymentResponse"
+              },
+              "Payment-Receipt": {
+                "$ref": "#/components/headers/PaymentReceipt"
               }
             },
             "content": {
@@ -563,7 +571,7 @@
             }
           },
           "400": {
-            "description": "Invalid vector, or `idempotency_key_invalid`.",
+            "description": "Invalid vector, `idempotency_key_invalid`, or `payment_credential_conflict` (x402 and MPP sent together).",
             "content": {
               "application/json": {
                 "schema": {
@@ -585,13 +593,16 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "402": {
-            "description": "Payment required. `insufficient_credits` with PAYMENT-REQUIRED: pay and resend. Bare `{\"code\": \"insufficient_credits\"}` without the header after a payment was sent: this request was not funded (payment refused, or settlement not final yet); resend the identical body with the same PAYMENT-SIGNATURE, with backoff, and stop 90 minutes after its validBefore. Never create a second authorization automatically: a new one is a second payment. A first payment that settles late becomes a credit in this namespace, used by the next verify sent without PAYMENT-SIGNATURE. Without the header as `{\"detail\": …}`: under 120 s of lifetime left, or `ACCOUNTLESS_VERIFY_NOT_ENABLED`. The 402 that carries PAYMENT-REQUIRED (the x402 challenge) also states the Terms in its body (`terms_url`, `terms_version`, `privacy_url`, `dpa_url`); PAYMENT-REQUIRED itself is unchanged and does not contain them, and paying accepts the stated Terms version. With an API key: plain `{\"code\": \"insufficient_credits\"}`, no PAYMENT-REQUIRED, no x402.",
+            "description": "Payment required. `insufficient_credits` with PAYMENT-REQUIRED: pay and resend. Bare `{\"code\": \"insufficient_credits\"}` without the header after a payment was sent: this request was not funded (payment refused, or settlement not final yet); resend the identical body with the same PAYMENT-SIGNATURE, with backoff, and stop 90 minutes after its validBefore. Never create a second authorization automatically: a new one is a second payment. A first payment that settles late becomes a credit in this namespace, used by the next verify sent without PAYMENT-SIGNATURE. Without the header as `{\"detail\": …}`: under 120 s of lifetime left, or `ACCOUNTLESS_VERIFY_NOT_ENABLED`. The 402 that carries PAYMENT-REQUIRED (the x402 challenge) also states the Terms in its body (`terms_url`, `terms_version`, `privacy_url`, `dpa_url`); PAYMENT-REQUIRED itself is unchanged and does not contain them, and paying accepts the stated Terms version. With an API key: plain `{\"code\": \"insufficient_credits\"}`, no PAYMENT-REQUIRED, no x402. Funded namespace (burst_500): `funded_window_ended` (the 24-hour grace) or `funded_credits_exhausted` (credits used), both without a challenge: refill at POST /v1/agent/namespace/fund or promote. An MPP refusal adds RFC 9457 `type`, `title` and `status` to the challenge body.",
             "headers": {
               "PAYMENT-REQUIRED": {
                 "$ref": "#/components/headers/PaymentRequired"
               },
               "Link": {
                 "$ref": "#/components/headers/TermsLink"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WwwAuthenticatePayment"
               }
             },
             "content": {
@@ -603,6 +614,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/ErrorDetail"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FundedRefusal"
                     }
                   ]
                 },
@@ -654,20 +668,46 @@
             "$ref": "#/components/responses/RateLimited"
           },
           "503": {
-            "description": "`verification_unavailable` (not charged; resend the identical body with the same PAYMENT-SIGNATURE) or `billing_unavailable`.",
+            "description": "`verification_unavailable` (not charged; resend the identical body with the same payment), `payment_processing` (an MPP payment is not final yet: resend the identical body with the same `Authorization: Payment` after Retry-After, never pay again) or `billing_unavailable`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BillingError"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/BillingError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorDetail"
+                    }
+                  ]
                 },
                 "example": {
                   "code": "verification_unavailable",
                   "message": "Verification could not be completed. No credit was consumed; retry (with a new request_id if you set one)."
                 }
               }
+            },
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
             }
           }
-        }
+        },
+        "x-payment-rails": [
+          {
+            "id": "x402",
+            "network": "eip155:8453",
+            "amount": "10000"
+          },
+          {
+            "id": "mpp_tempo",
+            "network": "eip155:4217",
+            "asset": "0x20c000000000000000000000b9537d11c60e8b50",
+            "amount": "10000"
+          }
+        ],
+        "x-mpp-credential-header": "Authorization: Payment"
       }
     },
     "/v1/agent/namespace/promote": {
@@ -779,6 +819,171 @@
           }
         }
       }
+    },
+    "/v1/agent/namespace/fund": {
+      "post": {
+        "operationId": "fundNamespace",
+        "summary": "Buy burst_500 for this namespace",
+        "tags": [
+          "Namespace"
+        ],
+        "security": [
+          {
+            "capability": []
+          }
+        ],
+        "description": "Buys `burst_500` for the capability's own namespace: 5.00 USD for 500 verifications usable until `funded_until` (settlement + 14 days), a 24-hour grace after it (verify refused, data kept until `retained_until`), and a 100,000,000-byte storage allowance. No body. Without payment the answer is `402 payment_required` with the offer, the Terms fields and the challenge of every rail accepting payment: x402 in PAYMENT-REQUIRED (amount 5000000) and one `WWW-Authenticate: Payment` per MPP method (`tempo`, amount 5000000; `stripe`, a card via a Stripe Shared Payment Token, amount 500 US cents). Pay exactly one and resend with PAYMENT-SIGNATURE or `Authorization: Payment` (both: 400 payment_credential_conflict). A refill gives a fresh 500 and a fresh window; credits and time never stack. The same payment sent again returns the same 200 and grants nothing again. `503 funded_capacity_unavailable` (Retry-After: 300) is answered before any challenge: nothing is offered or charged. A namespace that is already funded is never refused for capacity. Buy at least 15 minutes before the namespace stops being usable (`expires_at`, or `retained_until` for a refill), otherwise 409 namespace_expiring.",
+        "x-payment-rails": [
+          {
+            "id": "x402",
+            "network": "eip155:8453",
+            "amount": "5000000"
+          },
+          {
+            "id": "mpp_tempo",
+            "network": "eip155:4217",
+            "asset": "0x20c000000000000000000000b9537d11c60e8b50",
+            "amount": "5000000"
+          },
+          {
+            "id": "stripe_spt",
+            "currency": "usd",
+            "amount": "500"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "description": "x402 payment for the 402's PAYMENT-REQUIRED (base64 JSON). MPP payments use the `Authorization: Payment` header instead.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Funded. Carries PAYMENT-RESPONSE (x402) or Payment-Receipt (MPP).",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              },
+              "Payment-Receipt": {
+                "$ref": "#/components/headers/PaymentReceipt"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FundResponse"
+                },
+                "example": {
+                  "offer": "burst_500",
+                  "credits_granted": 500,
+                  "funded_until": "2026-11-10T12:00:00+00:00"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`payment_credential_conflict`: x402 and MPP sent together.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "description": "`payment_required`: the burst_500 offer and every accepting rail's challenge. A refused payment adds `reason` (x402) or an MPP problem `type`, with fresh challenges.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WwwAuthenticatePayment"
+              },
+              "Link": {
+                "$ref": "#/components/headers/TermsLink"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FundError"
+                },
+                "example": {
+                  "code": "payment_required",
+                  "message": "Pay for the offer below with any one advertised method.",
+                  "offer": {
+                    "id": "burst_500",
+                    "price_usd": "5.00",
+                    "credits": 500,
+                    "funded_window_days": 14,
+                    "grace_hours": 24
+                  },
+                  "terms_url": "https://www.trymnemo.com/terms",
+                  "terms_version": "2026-10-12",
+                  "privacy_url": "https://www.trymnemo.com/privacy",
+                  "dpa_url": "https://www.trymnemo.com/dpa"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Burst funding is not enabled on this deployment."
+          },
+          "409": {
+            "description": "`namespace_expiring` (under 15 minutes of usable lifetime left: before `expires_at`, or `retained_until` for a funded namespace), `namespace_not_fundable` (not ACTIVE), `funded_window_lapsed` (grace ended).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FundError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "description": "`funded_capacity_unavailable` (Retry-After: 300; no challenge, nothing charged), `payment_processing` / `payment_unavailable` (Retry-After: 30; resend the same payment later, never pay again), `funding_unavailable`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/FundError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorDetail"
+                    }
+                  ]
+                },
+                "example": {
+                  "code": "funded_capacity_unavailable",
+                  "message": "Funded capacity is unavailable right now. Nothing was offered or charged; retry later.",
+                  "retry_after_seconds": 300
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        },
+        "x-mpp-credential-header": "Authorization: Payment"
+      }
     }
   },
   "components": {
@@ -839,7 +1044,8 @@
               "billing_unavailable",
               "idempotency_key_reused",
               "request_in_progress",
-              "verification_unavailable"
+              "verification_unavailable",
+              "payment_processing"
             ]
           },
           "message": {
@@ -848,21 +1054,33 @@
           "terms_url": {
             "type": "string",
             "format": "uri",
-            "description": "URL of the Terms of Service. Only on the accountless x402 payment challenge (the 402 sent with PAYMENT-REQUIRED)."
+            "description": "URL of the Terms of Service. Only on an accountless 402 that carries a payment challenge (PAYMENT-REQUIRED and/or WWW-Authenticate: Payment)."
           },
           "terms_version": {
             "type": "string",
-            "description": "Version of the Terms of Service in force, e.g. `2026-10-12`. Only on the accountless x402 payment challenge (the 402 sent with PAYMENT-REQUIRED)."
+            "description": "Version of the Terms of Service in force, e.g. `2026-10-12`. Only on an accountless 402 that carries a payment challenge (PAYMENT-REQUIRED and/or WWW-Authenticate: Payment)."
           },
           "privacy_url": {
             "type": "string",
             "format": "uri",
-            "description": "URL of the Privacy Policy. Only on the accountless x402 payment challenge (the 402 sent with PAYMENT-REQUIRED)."
+            "description": "URL of the Privacy Policy. Only on an accountless 402 that carries a payment challenge (PAYMENT-REQUIRED and/or WWW-Authenticate: Payment)."
           },
           "dpa_url": {
             "type": "string",
             "format": "uri",
-            "description": "URL of the Data Processing Addendum. Only on the accountless x402 payment challenge (the 402 sent with PAYMENT-REQUIRED)."
+            "description": "URL of the Data Processing Addendum. Only on an accountless 402 that carries a payment challenge (PAYMENT-REQUIRED and/or WWW-Authenticate: Payment)."
+          },
+          "type": {
+            "type": "string",
+            "description": "MPP refusal: an RFC 9457 problem type URI (for example `…/verification-failed`)."
+          },
+          "title": {
+            "type": "string",
+            "description": "MPP refusal: problem title."
+          },
+          "status": {
+            "type": "integer",
+            "description": "MPP refusal: HTTP status (402)."
           }
         },
         "additionalProperties": false
@@ -918,7 +1136,7 @@
           },
           "durable": {
             "type": "boolean",
-            "description": "false: an unpromoted namespace's data is purged at `expires_at`."
+            "description": "false: an unpromoted namespace's data is purged at `expires_at` (a funded namespace keeps its data until retained_until)."
           },
           "state": {
             "type": "string",
@@ -956,7 +1174,7 @@
       },
       "ExpiryWarning": {
         "type": "object",
-        "description": "Attached once, to the first response after 75% of the lifetime has passed.",
+        "description": "Attached once, to the first response after 75% of the lifetime has passed. On a funded namespace (burst_500) the one warning comes with the last 24 hours of retention (the grace), on the status call, and its expires_at is retained_until.",
         "required": [
           "code",
           "expires_at",
@@ -1030,11 +1248,12 @@
           },
           "expires_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "The namespace's original, fixed expiry. A funded namespace keeps working past it until `retained_until`."
           },
           "seconds_remaining": {
             "type": "integer",
-            "description": "Seconds until `expires_at`."
+            "description": "Seconds until `expires_at`. On a funded namespace use `retained_seconds_remaining`."
           },
           "objects_used": {
             "type": "integer"
@@ -1053,6 +1272,27 @@
           },
           "warning": {
             "$ref": "#/components/schemas/ExpiryWarning"
+          },
+          "funded_until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Funded namespaces only: end of the burst's funded window (credits expire then)."
+          },
+          "retained_until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Funded namespaces only: funded_until + 24 h grace. Data is kept until then; verify is refused during the grace."
+          },
+          "retained_seconds_remaining": {
+            "type": "integer",
+            "description": "Funded namespaces only: seconds until retained_until."
+          },
+          "payment_menu": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentMenuEntry"
+            },
+            "description": "On a deployment that takes machine payments: the offers this namespace can buy now, and the rails accepting payment for each. Authoritative for discovery: an offer or rail not listed cannot be bought now, and the namespace's own limits apply (expiry, a funded namespace is offered refills only). A listed burst_500 can still be answered 503 funded_capacity_unavailable (no challenge, nothing charged) or 503 payment_processing (a burst payment is already being confirmed)."
           }
         }
       },
@@ -1245,7 +1485,7 @@
               "null"
             ],
             "format": "date-time",
-            "description": "With a namespace capability: the namespace's fixed `expires_at`. null with an API key."
+            "description": "With a namespace capability: the namespace's `expires_at`; on a funded namespace, its `retained_until`. null with an API key."
           },
           "namespace_state": {
             "type": [
@@ -1640,6 +1880,263 @@
             "type": "string"
           }
         }
+      },
+      "PaymentRail": {
+        "type": "object",
+        "required": [
+          "id",
+          "protocol",
+          "header"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "x402",
+              "mpp_tempo",
+              "stripe_spt"
+            ]
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "x402",
+              "mpp"
+            ]
+          },
+          "scheme": {
+            "type": "string",
+            "description": "x402 scheme (`exact`)."
+          },
+          "method": {
+            "type": "string",
+            "description": "MPP method: `tempo` or `stripe`."
+          },
+          "intent": {
+            "type": "string",
+            "description": "MPP intent (`charge`)."
+          },
+          "header": {
+            "type": "string",
+            "description": "Where the payment is sent: `PAYMENT-SIGNATURE` (x402) or `Authorization: Payment` (MPP)."
+          },
+          "network": {
+            "type": "string",
+            "description": "CAIP-2 network, when the rail has one (eip155:8453 for x402, eip155:4217 for Tempo)."
+          }
+        }
+      },
+      "PaymentMenuEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "price_usd",
+          "credits",
+          "route",
+          "rails"
+        ],
+        "description": "One offer this namespace can buy right now, and the rails accepting payment for it now. Informational: the route's 402 challenge binds the price.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "single_verify",
+              "burst_500"
+            ]
+          },
+          "price_usd": {
+            "type": "string",
+            "examples": [
+              "0.01",
+              "5.00"
+            ]
+          },
+          "credits": {
+            "type": "integer",
+            "examples": [
+              1,
+              500
+            ]
+          },
+          "route": {
+            "type": "string",
+            "examples": [
+              "POST /v1/verify",
+              "POST /v1/agent/namespace/fund"
+            ]
+          },
+          "rails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentRail"
+            }
+          },
+          "funded_window_days": {
+            "type": "integer",
+            "description": "burst_500 only: credits are usable for this many days from settlement."
+          },
+          "grace_hours": {
+            "type": "integer",
+            "description": "burst_500 only: hours after funded_until during which verify is refused and data is kept."
+          },
+          "storage_allowance_bytes": {
+            "type": "integer",
+            "description": "burst_500 only: accounted-byte allowance of a funded namespace."
+          }
+        }
+      },
+      "Offer": {
+        "type": "object",
+        "required": [
+          "id",
+          "price_usd",
+          "credits"
+        ],
+        "description": "The offer a 402 sells. Informational: each rail's challenge binds the price.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "burst_500"
+            ]
+          },
+          "price_usd": {
+            "type": "string"
+          },
+          "credits": {
+            "type": "integer"
+          },
+          "funded_window_days": {
+            "type": "integer"
+          },
+          "grace_hours": {
+            "type": "integer"
+          }
+        }
+      },
+      "FundResponse": {
+        "type": "object",
+        "required": [
+          "offer",
+          "credits_granted",
+          "funded_until"
+        ],
+        "properties": {
+          "offer": {
+            "type": "string",
+            "enum": [
+              "burst_500"
+            ]
+          },
+          "credits_granted": {
+            "type": "integer",
+            "description": "The pack's size (500). The same payment sent again returns this same body and grants nothing again."
+          },
+          "funded_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The namespace's current funded window end: settlement + 14 days (after a later refill, a resend of an older payment shows the newer window; null only if it cannot be read). Credits expire then; verify and embed are refused for the following 24 hours (grace); data is kept through retained_until (see GET /v1/agent/namespace)."
+          }
+        }
+      },
+      "FundError": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "`payment_required` (402, with offer and challenges), `payment_processing` / `payment_unavailable` (503: resend the same payment later, never pay again), `funded_capacity_unavailable` (503, no challenge, nothing charged), `funding_unavailable` (503), `namespace_expiring` / `namespace_not_fundable` / `funded_window_lapsed` (409), `capability_required` (403)."
+          },
+          "message": {
+            "type": "string"
+          },
+          "offer": {
+            "$ref": "#/components/schemas/Offer"
+          },
+          "reason": {
+            "type": "string",
+            "description": "A refused payment's category: amount_mismatch, payment_expired, offer_mismatch or payment_rejected."
+          },
+          "retry_after_seconds": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string",
+            "description": "MPP refusal: an RFC 9457 problem type URI (for example `…/verification-failed` or `…/invalid-challenge`)."
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "terms_url": {
+            "type": "string"
+          },
+          "terms_version": {
+            "type": "string"
+          },
+          "privacy_url": {
+            "type": "string"
+          },
+          "dpa_url": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string",
+            "description": "MPP refusal: a refusal category (e.g. payment_rejected). Decide on `code` and `type`."
+          }
+        }
+      },
+      "FundedRefusal": {
+        "type": "object",
+        "required": [
+          "code",
+          "fund",
+          "promote",
+          "funded_until"
+        ],
+        "description": "A funded namespace (burst_500) that may not verify now. No payment challenge: refill at `fund` or promote.",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "funded_window_ended",
+              "funded_credits_exhausted"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "fund": {
+            "type": "string",
+            "description": "The refill route: /v1/agent/namespace/fund."
+          },
+          "promote": {
+            "type": "string",
+            "description": "The promotion route."
+          },
+          "funded_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "retained_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "On funded_credits_exhausted: data is kept until then."
+          }
+        }
       }
     },
     "headers": {
@@ -1650,13 +2147,13 @@
         }
       },
       "PaymentResponse": {
-        "description": "Base64-encoded JSON settlement response (x402 V2); decoded shape: `PaymentResponse`. Only on the 200 of a verification paid on this request.",
+        "description": "Base64-encoded JSON settlement response (x402 V2); decoded shape: `PaymentResponse`. On /v1/verify only on the 200 of a verification paid on this request; on /v1/agent/namespace/fund on every 200 for that payment, including a resend.",
         "schema": {
           "type": "string"
         }
       },
       "RetryAfter": {
-        "description": "Seconds to wait before retrying: 60 for the per-minute request limit, 3600 for the hourly namespace-creation limit.",
+        "description": "Seconds to wait before retrying: 60 for the per-minute request limit, 3600 for the hourly namespace-creation limit, 30 for payment_processing / payment_unavailable / funded_sale_pending, 300 for funded_capacity_unavailable.",
         "schema": {
           "type": "integer"
         }
@@ -1667,11 +2164,24 @@
           "type": "string"
         },
         "example": "<https://www.trymnemo.com/terms>; rel=\"terms-of-service\", <https://www.trymnemo.com/privacy>; rel=\"privacy-policy\""
+      },
+      "WwwAuthenticatePayment": {
+        "description": "MPP challenge (HTTP `Payment` authentication scheme, intent `charge`): one header value per accepting MPP method — `method=\"tempo\"` (USDC.e on Tempo, chain 4217) or, on POST /v1/agent/namespace/fund only, `method=\"stripe\"` (card via a Stripe Shared Payment Token). Its `request` parameter is base64url JSON with `amount`, `currency`, `recipient` (Tempo) and `methodDetails`. Pay with a standard MPP client (a Tempo transfer must carry the attribution memo bound to the challenge; never build it by hand) and resend the same request with `Authorization: Payment <credential>`.",
+        "schema": {
+          "type": "string"
+        },
+        "example": "Payment id=\"…\", realm=\"api.trymnemo.com\", method=\"tempo\", intent=\"charge\", request=\"…\", expires=\"…\", opaque=\"…\""
+      },
+      "PaymentReceipt": {
+        "description": "MPP receipt: base64url JSON with `method`, `reference` (the Tempo transaction hash or the Stripe PaymentIntent), `status` and `timestamp` (the time of this answer). On /v1/verify only on the 200 of a request paid over MPP on that request; on /v1/agent/namespace/fund on every 200 for that payment, including a resend.",
+        "schema": {
+          "type": "string"
+        }
       }
     },
     "responses": {
       "Unauthorized": {
-        "description": "Invalid or expired credential: a capability that is unknown, revoked by a completed promotion, or past the namespace's `expires_at`; or an invalid API key (`Invalid API key`).",
+        "description": "Invalid or expired credential: a capability that is unknown, revoked by a completed promotion, or past the namespace's `expires_at` (a funded namespace: past `retained_until`); or an invalid API key (`Invalid API key`).",
         "content": {
           "application/json": {
             "schema": {
@@ -1731,7 +2241,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-Mnemo-Capability",
-        "description": "Accountless namespace capability, sent as X-Mnemo-Capability and returned once by createNamespace. No account and no subscription: verify with a capability is paid per call via x402 (0.01 USDC on Base, PAYMENT-REQUIRED / PAYMENT-SIGNATURE); every other operation is free. Stops authenticating at the namespace's `expires_at` or after a completed promotion."
+        "description": "Accountless namespace capability, sent as X-Mnemo-Capability and returned once by createNamespace. No account and no subscription. Verify with a capability costs 0.01 USD per healthy verification, paid at its 402 over any accepting rail (x402: USDC on Base; MPP: USDC.e on Tempo), or from a burst_500 credit; POST /v1/agent/namespace/fund sells burst_500 (5.00 USD; x402, MPP Tempo or an MPP card). Every other operation is free; GET /v1/agent/namespace lists what can be bought now in payment_menu. Stops authenticating at the namespace's `expires_at` (a funded namespace: at `retained_until`) or after a completed promotion."
       },
       "apiKey": {
         "type": "apiKey",

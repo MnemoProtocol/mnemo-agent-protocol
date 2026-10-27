@@ -11,7 +11,10 @@ The public contract for the **accountless Mnemo Agent API**. An agent with no ac
 1. **Namespace** — `POST /v1/agent/namespaces` creates a short-lived namespace (default 24 h, at most 72 h) and returns a capability once; send it as `X-Mnemo-Capability`.
 2. **Embed** — `POST /v1/embed` with your `vector` and a `model_id` (both required; `model_id` is a label you declare) returns a measurably perturbed watermarked copy of your vector and a `vector_uid`. Free.
 3. **Lineage** — `GET /v1/lineage/{vector_uid}` returns the chain of parents you named with `parent` at embed time, each verified as yours; it does not check what the transformation did. Free.
-4. **Verify (paid)** — `POST /v1/verify` answers `402` with `PAYMENT-REQUIRED`; pay via x402 on Base and resend the identical body with `PAYMENT-SIGNATURE`. The result carries `verified`, `confidence`, `vector_uid` (null when not verified) and `policy_ok`; decide on `verified`. Each healthy verification, positive or negative, costs 0.01 USDC (see §1 of [`agent-protocol.md`](agent-protocol.md)).
+4. **Verify (paid)** — `POST /v1/verify` answers `402` with its payment challenges: x402 (`PAYMENT-REQUIRED`, USDC on Base) and MPP on Tempo (`WWW-Authenticate: Payment`, USDC.e). Pay one and resend the identical body with `PAYMENT-SIGNATURE` or `Authorization: Payment`. The result carries `verified`, `confidence`, `vector_uid` (null when not verified) and `policy_ok`; decide on `verified`. Each healthy verification, positive or negative, costs 0.01 USD (see §1 of [`agent-protocol.md`](agent-protocol.md)).
+5. **Burst (optional)** — `POST /v1/agent/namespace/fund` sells 500 verifications for 5.00 USD, usable for 14 days, with a 100,000,000-byte storage allowance; pay over x402, MPP on Tempo, or a card through MPP and a Stripe Shared Payment Token. A card is never offered for a single verification, and no rail is required.
+
+`GET /v1/agent/namespace` returns `payment_menu`: the offers and rails a namespace can buy right now. It is the authoritative discovery surface; each `402` challenge is authoritative for amount, asset and recipient.
 
 **Scope of verify.** Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. `verified: false` is a normal, charged result; it is not a statement about who else may have registered the vector.
 
@@ -34,7 +37,7 @@ client = MnemoClient(api_key="your-api-key")
 - SDK repository: https://github.com/MnemoProtocol/mnemo-sdk
 - PyPI: https://pypi.org/project/mnemo-protocol/ (distribution `mnemo-protocol`, import `mnemo_sdk`)
 
-The SDK does not implement accountless namespaces, lineage or x402; for those, use this contract over HTTP.
+The SDK does not implement accountless namespaces, lineage or machine payments (x402, MPP); for those, use this contract over HTTP.
 
 Mnemo here is the embedding-vector provenance API at trymnemo.com (GitHub MnemoProtocol; PyPI mnemo-protocol, imported as mnemo_sdk). It is not the unrelated PyPI packages mnemo, mnemo-sdk, mnemo-ai or mnemo-mcp, and not an AI-memory app or MCP server.
 
@@ -42,14 +45,16 @@ Mnemo here is the embedding-vector provenance API at trymnemo.com (GitHub MnemoP
 
 | File | In this repo | On trymnemo.com | Contents |
 |---|---|---|---|
-| `agent-protocol.md` | [agent-protocol.md](agent-protocol.md) | https://www.trymnemo.com/agent-protocol.md | the complete contract: auth, lifecycle, pricing, x402, retries, lineage, promotion, retention, limits, errors |
-| `openapi.json` | [openapi.json](openapi.json) | https://www.trymnemo.com/openapi.json | OpenAPI 3.1 for the six agent operations |
+| `agent-protocol.md` | [agent-protocol.md](agent-protocol.md) | https://www.trymnemo.com/agent-protocol.md | the complete contract: auth, lifecycle, pricing, x402 and MPP payment, bursts, retries, lineage, promotion, retention, limits, errors |
+| `openapi.json` | [openapi.json](openapi.json) | https://www.trymnemo.com/openapi.json | OpenAPI 3.1 for the seven agent operations |
 | `llms.txt` | [llms.txt](llms.txt) | https://www.trymnemo.com/llms.txt | discovery summary for agents |
 | `agent-manifest.json` | [agent-manifest.json](agent-manifest.json) | https://www.trymnemo.com/agent-manifest.json | machine-readable manifest |
 | `examples/agent-quickstart.sh` | [examples/agent-quickstart.sh](examples/agent-quickstart.sh) | https://www.trymnemo.com/examples/agent-quickstart.sh | end-to-end walkthrough with curl (placeholders only) |
 | `examples/agent_quickstart.py` | [examples/agent_quickstart.py](examples/agent_quickstart.py) | https://www.trymnemo.com/examples/agent_quickstart.py | the same in Python, including the paid verify (placeholders only) |
 
-Paying with `examples/agent_quickstart.py` needs Python 3.10+ (`pip install "x402[evm]==2.22.0"`); steps without payment need only the standard library.
+Paying with `examples/agent_quickstart.py` needs Python 3.10+ (`pip install "x402[evm]==2.22.0"`); steps without payment need only the standard library. The examples pay with x402; MPP payments (Tempo, or a card for the burst) are made the same way with an MPP client.
+
+An installable agent skill is published at https://www.trymnemo.com/.well-known/skills/mnemo-vector-provenance/SKILL.md (`npx skills add https://www.trymnemo.com`).
 
 ## When not to use Mnemo
 
@@ -61,7 +66,7 @@ Paying with `examples/agent_quickstart.py` needs Python 3.10+ (`pip install "x40
 - For raw text, images, audio or video: Mnemo works on embedding vectors (512–4096 numbers).
 - When your pipeline must keep the original vector bit-for-bit: embed returns a perturbed copy that you store in its place.
 - Through MCP: there is no public MCP server; use the HTTP API.
-- On the accountless (x402) path, for personal data subject to EEA, UK or Swiss data protection law (see the DPA note in [`llms.txt`](llms.txt)).
+- On the accountless path (any payment rail), for personal data subject to EEA, UK or Swiss data protection law (see the DPA note in [`llms.txt`](llms.txt)).
 
 ## Legal
 

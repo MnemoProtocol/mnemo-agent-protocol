@@ -1,6 +1,6 @@
 {
   "name": "Mnemo Agent API",
-  "description": "HTTP API that gives embedding vectors a verifiable identity: embed (watermarked copy + vector_uid), verify (does this vector resolve to an object registered to your own namespace or account?), and lineage of parents you name at embed. Accountless: 0.01 USDC per verify via x402 on Base; API keys: subscription, never x402. Own Mnemo-embedded vectors only; not a vector DB; no truth, authorship or ownership claims.",
+  "description": "HTTP API that gives embedding vectors a verifiable identity: embed (watermarked copy + vector_uid), verify (does this vector resolve to an object registered to your own namespace or account?), and lineage of parents you name at embed. Accountless: 0.01 USD per verify (USDC on Base via x402, or USDC.e on Tempo via MPP), or 500 verifications for 5.00 USD (x402, MPP Tempo, or a card via MPP and a Stripe Shared Payment Token); API keys: subscription, never x402. Own Mnemo-embedded vectors only; not a vector DB; no truth, authorship or ownership claims.",
   "disambiguation": "Mnemo here is the embedding-vector provenance API at trymnemo.com (GitHub MnemoProtocol; PyPI mnemo-protocol, imported as mnemo_sdk). It is not the unrelated PyPI packages mnemo, mnemo-sdk, mnemo-ai or mnemo-mcp, and not an AI-memory app or MCP server.",
   "website": "https://www.trymnemo.com",
   "api_base": "https://api.trymnemo.com",
@@ -35,15 +35,15 @@
     "generating embeddings, vector storage or similarity search",
     "judging the truth, authorship, ownership or source model of content",
     "file, image, code or text authenticity",
-    "personal data subject to EEA, UK or Swiss data protection law over accountless (x402) access"
+    "personal data subject to EEA, UK or Swiss data protection law over accountless access (any payment rail)"
   ],
   "availability": "If POST /v1/agent/namespaces answers 404, accountless access is not enabled on this deployment.",
   "pricing": {
-    "summary": "0.01 USDC per healthy verification, whether the result is positive or negative, paid via x402 on Base.",
+    "summary": "0.01 USD per healthy verification, whether the result is positive or negative, paid in USDC on Base via x402 or in USDC.e on Tempo via MPP; or 500 verifications for 5.00 USD (burst_500). Discover what a namespace can buy now from payment_menu (GET /v1/agent/namespace).",
     "charged_operation": "POST /v1/verify",
     "unit": "one healthy completed verification (verified true or false)",
     "price_atomic": "10000",
-    "asset": "USDC",
+    "asset": "USDC (x402, Base) or USDC.e (MPP, Tempo); USD on a card (burst_500 only)",
     "asset_decimals": 6,
     "not_charged": [
       "namespace creation and status",
@@ -55,7 +55,36 @@
     ],
     "free_verifications_for_accountless_namespaces": 0
   },
+  "offers": [
+    {
+      "id": "single_verify",
+      "price_usd": "0.01",
+      "credits": 1,
+      "route": "POST /v1/verify",
+      "rails": ["x402", "mpp_tempo"],
+      "note": "Not sold over a card: Stripe's minimum card charge rules out 0.01 USD. Never sold to a funded namespace."
+    },
+    {
+      "id": "burst_500",
+      "price_usd": "5.00",
+      "credits": 500,
+      "route": "POST /v1/agent/namespace/fund",
+      "rails": ["x402", "mpp_tempo", "stripe_spt"],
+      "funded_window_days": 14,
+      "grace_hours": 24,
+      "storage_allowance_bytes": 100000000,
+      "semantics": "Credits expire at funded_until (14 days after settlement). A refill gives a fresh 500 and a fresh window; credits and time never stack. For 24 hours after funded_until verify (402 funded_window_ended) and embed (410) are refused, but the namespace is not gone: its capability works, data is kept through retained_until and a refill reopens it. Buy at least 15 minutes before the namespace stops being usable (expires_at, or retained_until for a refill). A replayed payment grants nothing again. No automatic refunds.",
+      "capacity_refusal": "503 funded_capacity_unavailable with Retry-After: 300 and no payment challenge: nothing offered, nothing charged. payment_menu can still list burst_500 at that moment."
+    }
+  ],
+  "rails": {
+    "x402": { "protocol": "x402", "network": "eip155:8453", "asset": "USDC", "challenge_header": "PAYMENT-REQUIRED", "request_header": "PAYMENT-SIGNATURE", "receipt_header": "PAYMENT-RESPONSE" },
+    "mpp_tempo": { "protocol": "mpp", "method": "tempo", "intent": "charge", "network": "eip155:4217", "asset": "USDC.e", "asset_address": "0x20c000000000000000000000b9537d11c60e8b50", "challenge_header": "WWW-Authenticate: Payment", "request_header": "Authorization: Payment", "receipt_header": "Payment-Receipt" },
+    "stripe_spt": { "protocol": "mpp", "method": "stripe", "intent": "charge", "instrument": "card via a Stripe Shared Payment Token", "offers": ["burst_500"], "challenge_header": "WWW-Authenticate: Payment", "request_header": "Authorization: Payment", "receipt_header": "Payment-Receipt" },
+    "rule": "Pay exactly one challenge from the 402; take amount, asset and recipient from it. No rail is required. Pay MPP challenges with a standard MPP client: a Tempo transfer must carry the attribution memo bound to the challenge, so never build it by hand."
+  },
   "payment": {
+    "note": "x402 rail details. x402 is one of several rails; see rails and offers.",
     "protocol": "x402",
     "x402_version": 2,
     "scheme": "exact",
@@ -76,10 +105,11 @@
   "request_id": "omit it on a paid verify (the payment identifies the operation; retries resend the identical body); elsewhere optional, not scoped to a namespace, kept 24 hours: use a fresh random UUID",
   "capabilities": [
     { "operation": "POST /v1/agent/namespaces", "auth": "none", "cost": "free", "summary": "create an ephemeral namespace (JSON body; {} is enough); returns the capability once" },
-    { "operation": "GET /v1/agent/namespace", "auth": "capability", "cost": "free", "summary": "state, expiry, usage, limits" },
+    { "operation": "GET /v1/agent/namespace", "auth": "capability", "cost": "free", "summary": "state, expiry, usage, limits; payment_menu (what this namespace can buy now, and over which rails); on a funded namespace funded_until, retained_until and retained_seconds_remaining" },
     { "operation": "POST /v1/embed", "auth": "capability or API key", "cost": "free", "summary": "watermark and register a vector; optional verified parent" },
     { "operation": "GET /v1/lineage/{vector_uid}", "auth": "capability or API key", "cost": "free", "summary": "verified derivation chain" },
-    { "operation": "POST /v1/verify", "auth": "capability (paid) or API key", "cost": "with a capability: 0.01 USDC per healthy verification (x402); with an API key: the account's plan, never x402", "summary": "does this vector resolve to an object registered to this namespace or account" },
+    { "operation": "POST /v1/verify", "auth": "capability (paid) or API key", "cost": "with a capability: 0.01 USD per healthy verification (x402 or MPP Tempo), or one burst_500 credit; with an API key: the account's plan, never x402", "summary": "does this vector resolve to an object registered to this namespace or account" },
+    { "operation": "POST /v1/agent/namespace/fund", "auth": "capability (paid)", "cost": "5.00 USD (x402, MPP Tempo or MPP card)", "summary": "buy burst_500 for this namespace: 500 verifications, a 14-day funded window, a 100,000,000-byte storage allowance; 200 returns offer, credits_granted and funded_until" },
     { "operation": "POST /v1/agent/namespace/promote", "auth": "capability and human session", "cost": "free", "summary": "optional, human-assisted handoff (agents never need it): promote to a permanent account; identities and lineage preserved; does not start the free trial (the issued API key uses the account's subscription plan)" }
   ],
   "limits": {
@@ -87,6 +117,7 @@
     "namespace_creations_per_hour_per_source": 5,
     "objects_per_namespace": 10000,
     "accounted_bytes_per_namespace": 26214400,
+    "accounted_bytes_per_funded_namespace": 100000000,
     "namespace_lifetime_seconds": { "default": 86400, "min": 60, "max": 259200 },
     "vector_dimensions": { "min": 512, "max": 4096 }
   },

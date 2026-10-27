@@ -2,7 +2,10 @@
 # Mnemo Agent API — curl walkthrough (protocol: https://www.trymnemo.com/agent-protocol.md).
 #
 # Needs: bash, curl, python3. Paying (step 6) needs an x402 V2 client and a wallet holding
-# USDC on Base; see agent_quickstart.py for a complete signing example.
+# USDC on Base; see agent_quickstart.py for a complete signing example. x402 is one rail of
+# several: the same 402 can also offer MPP on Tempo (USDC.e), and POST /v1/agent/namespace/fund
+# sells 500 verifications for 5.00 USD over x402, MPP Tempo or an MPP card. GET
+# /v1/agent/namespace lists what can be bought now (payment_menu); see agent-protocol.md §5.
 #
 # Every credential below is a placeholder. Never paste a real capability, API key, session
 # token or payment signature into a file you share.

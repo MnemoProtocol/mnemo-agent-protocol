@@ -53,6 +53,9 @@ jobs:
         run: |
           python -c 'import json; json.load(open("agent-manifest.json", encoding="utf-8")); print("agent-manifest.json: valid JSON")'
 
+      - name: Payment wording and rails (single_verify never offers a card)
+        run: python .github/scripts/check_payment_wording.py
+
   live-compare:
     name: compare with trymnemo.com (informational, PR only)
     # Informational: warnings only, always exits 0, never blocks a PR.

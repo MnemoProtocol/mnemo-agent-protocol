@@ -542,7 +542,7 @@ promotion:
 | Growth | 365 days |
 | Scale | 1,095 days |
 | Pro (legacy) | 365 days |
-| Enterprise | indefinite |
+| Enterprise | custom retention policy, governed by deployment configuration and contractual terms |
 
 A promoted account without a plan keeps objects for the `retention_seconds` stated in the promotion response (§8).
 Upgrading later does not extend the retention of objects already stored. After an object's retention ends, verifying it
@@ -630,7 +630,7 @@ curl -s -i -X POST $API/v1/agent/namespace/fund -H "X-Mnemo-Capability: $CAP"
 
 - **MCP**: MCP support is planned; there is no public MCP server today. Use the HTTP API.
 - Renewing or extending an unfunded ephemeral namespace (a burst keeps a namespace usable for its funded window,
-  §4.1; to keep data permanently, a signed-in person can promote it, §8).
+  §4.1; to keep data longer, a signed-in person can promote it, and its plan's retention then applies, §8, §9).
 - Notifications, webhooks or callbacks — Mnemo never contacts an agent.
 - Payment assets and methods other than USDC on Base (x402 `exact` with EIP-3009), USDC.e on Tempo (MPP), and a card
   through a Stripe Shared Payment Token (MPP, `burst_500` only).

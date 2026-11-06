@@ -127,7 +127,7 @@
     "growth": 365,
     "scale": 1095,
     "pro_legacy": 365,
-    "enterprise": "indefinite",
+    "enterprise": "custom retention policy, governed by deployment configuration and contractual terms",
     "free_trial_note": "Free trial objects are kept until the trial ends (at most 30 days); Customer Content is then deleted after a 7-day grace period unless the account moves to a paid plan."
   },
   "not_in_v1": ["MCP (planned)"],

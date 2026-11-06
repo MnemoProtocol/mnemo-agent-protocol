@@ -52,6 +52,7 @@ Leave `request_id` out of a paid verify: the payment identifies the operation, s
 ## Docs
 
 - [Agent protocol](https://www.trymnemo.com/agent-protocol.md): the complete contract — auth, lifecycle, pricing, x402 and MPP payment, bursts, retries, lineage, promotion, retention, limits, errors
+- [Agent onboarding](https://www.trymnemo.com/agents): the accountless flow for agents in seven steps, with HTTP and Python quickstarts, the offers and payment rails, and the namespace lifecycle
 - [OpenAPI 3.1](https://www.trymnemo.com/openapi.json): the seven agent operations, with result semantics and examples
 - [Agent skill](https://www.trymnemo.com/.well-known/skills/mnemo-vector-provenance/SKILL.md): installable skill for agents (`npx skills add https://www.trymnemo.com`)
 - [Agent manifest](https://www.trymnemo.com/agent-manifest.json): machine-readable summary
@@ -61,6 +62,7 @@ Leave `request_id` out of a paid verify: the payment identifies the operation, s
 ## SDK and source
 
 - [Python SDK docs](https://www.trymnemo.com/docs/sdk): install, authenticate with `X-API-Key`, embed and verify with `MnemoClient`
+- [Cookbook](https://www.trymnemo.com/docs/cookbook): account API-key recipes for a retrieval pipeline: register embeddings at ingest, verify what you retrieve before it reaches a model, and record lineage
 - [Python SDK on PyPI](https://pypi.org/project/mnemo-protocol/): `pip install mnemo-protocol`, imported as `mnemo_sdk`; account API-key client only (no x402, no lineage)
 - [Python SDK source](https://github.com/MnemoProtocol/mnemo-sdk): README, docs and changelog
 - [Agent protocol repository](https://github.com/MnemoProtocol/mnemo-agent-protocol): public copy of these agent files

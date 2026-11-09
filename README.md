@@ -51,7 +51,7 @@ if check is None:
 elif check.vector_uid == expected_uid:
     print("verified: resolves to", check.vector_uid)
 else:
-    # Registered to your account, but to another of your objects, not this one.
+    # Resolves to another object registered to your account, not the one you expected.
     print("verified, but resolves to a different registered object:", check.vector_uid)
 ```
 

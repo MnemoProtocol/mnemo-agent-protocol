@@ -29,9 +29,30 @@ pip install mnemo-protocol
 ```
 
 ```python
+import os
+import random
+
 from mnemo_sdk import MnemoClient
 
-client = MnemoClient(api_key="your-api-key")
+client = MnemoClient(api_key=os.environ["MNEMO_API_KEY"])  # account API key, sent as X-API-Key
+
+# Stand-in for your real embedding: 512–4096 finite numbers.
+vector = [random.uniform(-1.0, 1.0) for _ in range(768)]
+
+result = client.embed(vector=vector, model_id="text-embedding-3-small")
+# Store result.watermarked_vector in place of `vector`, and keep result.vector_uid.
+expected_uid = result.vector_uid
+
+check = client.verify(vector=result.watermarked_vector)
+if check is None:
+    # A normal result, not an error, and it counts as one verification:
+    # attribution to this account could not be shown.
+    print("not verified for this account")
+elif check.vector_uid == expected_uid:
+    print("verified: resolves to", check.vector_uid)
+else:
+    # Resolves to another object registered to your account, not the one you expected.
+    print("verified, but resolves to a different registered object:", check.vector_uid)
 ```
 
 - SDK repository: https://github.com/MnemoProtocol/mnemo-sdk
@@ -59,11 +80,11 @@ An installable agent skill is published at https://www.trymnemo.com/.well-known/
 
 ## When not to use Mnemo
 
-- To establish truth, authorship, ownership or authenticity of content: Mnemo does not determine any of these.
+- To establish truth, authorship, ownership, authenticity or the source model of content: Mnemo does not determine any of these.
 - To check whether a vector belongs to someone else: verify only resolves objects registered to your own account or namespace.
 - For vectors never embedded through Mnemo: there is no retroactive coverage.
-- For similarity search or storage: Mnemo is not a vector database.
-- To keep data in an accountless namespace past `expires_at`: it is purged unless a person promotes it.
+- For similarity search or storage: Mnemo is not a similarity search and not a vector database.
+- To keep data in an accountless namespace for good: it is purged at `expires_at` (a funded namespace: at `retained_until`) unless a person promotes it.
 - For raw text, images, audio or video: Mnemo works on embedding vectors (512–4096 numbers).
 - When your pipeline must keep the original vector bit-for-bit: embed returns a perturbed copy that you store in its place.
 - Through MCP: there is no public MCP server; use the HTTP API.

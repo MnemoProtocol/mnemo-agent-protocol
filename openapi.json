@@ -480,7 +480,7 @@
             "apiKey": []
           }
         ],
-        "description": "Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. The result is scoped to the caller: it cannot show whether a vector belongs to another party, and it says nothing about the truth, authorship or ownership of the content. verified=false means attribution could not be shown (for example the vector was never embedded here, was changed too much after embedding, or its retention ended); it is a safe outcome, not an error. With a namespace capability: 0.01 USD per healthy verification (positive or negative), paid at the 402 over any accepting rail — x402 on Base or MPP on Tempo (see the MPP note below). Without a paid credit: 402 with the challenge of each accepting rail (PAYMENT-REQUIRED and/or WWW-Authenticate: Payment); for x402, pay and resend the same request with PAYMENT-SIGNATURE. A verification Mnemo cannot complete is 503 and costs nothing. With an account API key, verification uses the account's subscription plan (https://www.trymnemo.com/pricing): when its verifications are used up the answer is 402 insufficient_credits without PAYMENT-REQUIRED; x402 is never offered to an API key.\n\nMPP (alternative to x402): when MPP is offered the 402 also carries `WWW-Authenticate: Payment` (method `tempo`, USDC.e on Tempo, amount 10000). Pay it with a standard MPP client (the Tempo transfer must carry the attribution memo bound to the challenge; never build it by hand) and resend the identical body with `Authorization: Payment <credential>`; the 200 then carries `Payment-Receipt`. An MPP payment that is not final yet answers `503 payment_processing` (Retry-After: 30): resend the same credential, never pay again. A refused MPP credential answers 402 with a problem `type` and a fresh challenge; it bought nothing. A card is never offered here (single_verify). A funded namespace (burst_500) verifies on its burst credits: `402 funded_window_ended` during the 24-hour grace and `402 funded_credits_exhausted` when its credits are used, both without a challenge.",
+        "description": "Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. The result is scoped to the caller: it cannot show whether a vector belongs to another party, and it says nothing about the truth, authorship or ownership of the content. verified=false means attribution could not be shown (for example the vector is unrelated to your registered objects, was changed too much after embedding, or its retention ended); it is a safe outcome, not an error. With a namespace capability: 0.01 USD per healthy verification (positive or negative), paid at the 402 over any accepting rail — x402 on Base or MPP on Tempo (see the MPP note below). Without a paid credit: 402 with the challenge of each accepting rail (PAYMENT-REQUIRED and/or WWW-Authenticate: Payment); for x402, pay and resend the same request with PAYMENT-SIGNATURE. A verification Mnemo cannot complete is 503 and costs nothing. With an account API key, verification uses the account's subscription plan (https://www.trymnemo.com/pricing): when its verifications are used up the answer is 402 insufficient_credits without PAYMENT-REQUIRED; x402 is never offered to an API key.\n\nMPP (alternative to x402): when MPP is offered the 402 also carries `WWW-Authenticate: Payment` (method `tempo`, USDC.e on Tempo, amount 10000). Pay it with a standard MPP client (the Tempo transfer must carry the attribution memo bound to the challenge; never build it by hand) and resend the identical body with `Authorization: Payment <credential>`; the 200 then carries `Payment-Receipt`. An MPP payment that is not final yet answers `503 payment_processing` (Retry-After: 30): resend the same credential, never pay again. A refused MPP credential answers 402 with a problem `type` and a fresh challenge; it bought nothing. A card is never offered here (single_verify). A funded namespace (burst_500) verifies on its burst credits: `402 funded_window_ended` during the 24-hour grace and `402 funded_credits_exhausted` when its credits are used, both without a challenge.",
         "x-payment": {
           "protocol": "x402",
           "x402Version": 2,
@@ -1447,7 +1447,7 @@
             "items": {
               "type": "number"
             },
-            "description": "A measurably perturbed, unit-length watermarked copy of your input, with the same number of dimensions. Store and use it in place of your original: it carries the identity and is the vector that verifies."
+            "description": "A measurably perturbed, unit-length watermarked copy of your input, with the same number of dimensions. Store and use it in place of your original, and verify this copy: it carries the identity."
           },
           "created_at": {
             "type": "string",
@@ -1562,18 +1562,18 @@
         "properties": {
           "verified": {
             "type": "boolean",
-            "description": "The verdict. true: the vector resolved to an object registered to the caller's namespace or account (`vector_uid`). false: attribution to one of the caller's registered objects could not be shown; a safe outcome, not an error, and not proof that the vector belongs to someone else. true or false are both healthy results and both cost one verification. A healthy negative is `verified: false` with `vector_uid: null`, `policy_ok: false` and `lineage: null`; it is not an error. A verification that could not complete is never a 200: it is `503 verification_unavailable` and costs nothing."
+            "description": "The verdict. true: the vector resolved to an object registered to the caller's namespace or account (`vector_uid`). false: attribution to one of the caller's registered objects could not be shown; a safe outcome, not an error, and not proof that the vector belongs to someone else. true or false are both healthy results and both cost one verification. A healthy negative is `verified: false` with `vector_uid: null`, `policy_ok: false` and `lineage: null`; it is not an error. There is no third (unknown) verdict. A verification that could not complete is never a 200: it is `503 verification_unavailable` and costs nothing."
           },
           "confidence": {
             "type": "number",
-            "description": "Diagnostic score accompanying the verdict. Not a probability and not a threshold to apply yourself: decide on `verified`."
+            "description": "Diagnostic score accompanying the verdict. Not a probability, not a measure of certainty and not a threshold to apply yourself: decide on `verified`."
           },
           "vector_uid": {
             "type": [
               "string",
               "null"
             ],
-            "description": "When `verified` is true: the `vector_uid` of the caller's registered object the vector resolved to. null when `verified` is false."
+            "description": "When `verified` is true: the `vector_uid` of the caller's registered object the vector resolved to. When you expect a specific object (for example the vector_uid stored with a retrieved row), check that this matches it. null when `verified` is false."
           },
           "policy_ok": {
             "type": "boolean",

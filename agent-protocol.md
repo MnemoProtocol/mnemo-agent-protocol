@@ -195,19 +195,22 @@ body (§6). A funded namespace (§4.1) verifies on its burst credits and is neve
 ```
 
 `verified: true` means the vector resolved to an object registered to this namespace or account; `vector_uid` is that
-object's id. It says nothing about the content the vector represents: not its truth, authorship or ownership.
+object's id. When you expect a specific object (for example the `vector_uid` you stored with a retrieved row), check
+that the returned `vector_uid` matches it. It says nothing about the content the vector represents: not its truth,
+authorship or ownership.
 
 A `200` with `verified: false`, `vector_uid: null`, `policy_ok: false` and `lineage: null` is a **healthy negative
 result**: the verification ran, and attribution to one of this namespace's or account's registered objects could not be
-shown — for example the vector was never embedded here, it was changed too much after embedding, or its object's
-retention has ended (§9). It is a safe outcome, not an error, and not proof that the vector belongs to someone else. It
-is charged like a positive one; do not pay again for the same vector. Decide on `verified`: `policy_ok` is a separate
-policy signal, always `false` on a negative and not a verdict on its own. `confidence` is a diagnostic score that
-accompanies the verdict; it is not a probability and not a threshold to apply yourself. `lineage`
-is present only for a verified object (`null` means unknown, not "root"); it is read from the object's record and not
-re-verified (use §3.4 for the verified chain). `signals` is diagnostic metadata about how
-the result was reached; it is informational and its fields may change. A verification Mnemo could not complete is never
-a `200`: it is `503 {"code": "verification_unavailable"}`, carries no result, costs nothing, and is retried (§6).
+shown — for example the vector is unrelated to any object registered here, it was changed too much after embedding, or
+its object's retention has ended (§9). It is a safe outcome, not an error, and not proof that the vector belongs to
+someone else. It is charged like a positive one; do not pay again for the same vector. Decide on `verified`:
+`policy_ok` is a separate policy signal, always `false` on a negative and not a verdict on its own. `confidence` is a
+diagnostic score that accompanies the verdict; it is not a probability, not a measure of certainty and not a threshold
+to apply yourself. `lineage` is present only for a verified object (`null` means unknown, not "root"); it is read from
+the object's record and not re-verified (use §3.4 for the verified chain). `signals` is diagnostic metadata about how
+the result was reached; it is informational and its fields may change. There is no third (unknown) verdict. A
+verification Mnemo could not complete is never a `200`: it is `503 {"code": "verification_unavailable"}`, carries no
+result, costs nothing, and is retried (§6).
 
 ### 3.6 Promote — `POST /v1/agent/namespace/promote`
 

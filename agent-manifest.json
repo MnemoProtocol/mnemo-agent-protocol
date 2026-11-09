@@ -24,9 +24,9 @@
   "protocol_repository": "https://github.com/MnemoProtocol/mnemo-agent-protocol",
   "results": {
     "verify_scope": "Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's Mnemo account or namespace. It cannot show whether a vector belongs to another party.",
-    "verified_true": "The vector resolved to an object registered to the caller's namespace or account; vector_uid is that object's id. When you expect a specific object (for example the vector_uid stored with a retrieved row), check that the returned vector_uid matches it.",
+    "verified_true": "The vector resolved to an object registered to the caller's namespace or account; vector_uid is that object's id.",
     "verified_false": "Attribution to one of the caller's registered objects could not be shown. A safe, charged outcome, not an error, and not proof that the vector belongs to someone else.",
-    "confidence": "Diagnostic, not a probability or a measure of certainty. Decide on verified.",
+    "confidence": "Diagnostic, not a probability. Decide on verified.",
     "embed_output": "watermarked_vector is a measurably perturbed, unit-length watermarked copy of the FP32 input; store and use it in place of the original."
   },
   "not_for": [

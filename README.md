@@ -1,8 +1,8 @@
 # Mnemo Agent API — public protocol
 
-**Mnemo (trymnemo.com) watermarks embedding vectors and checks whether a vector was issued to your own account or namespace. This repository is the public HTTP contract for its accountless Agent API at `https://api.trymnemo.com`.**
+**Mnemo (trymnemo.com) watermarks embedding vectors and checks whether a vector resolves to an object registered to your own account or namespace. This repository is the public HTTP contract for its accountless Agent API at `https://api.trymnemo.com`.**
 
-**Provenance, not proximity.** In Mnemo, provenance means a vector resolves to a `vector_uid` that Mnemo issued at embed time and that is still attributable to the account or namespace that issued it. A nearest-neighbour search can say a vector is close to something, not whether a vector you hold was issued by your own pipeline. Use Mnemo when you store embeddings and later need to check whether a vector you hold (for example a retrieved one) was issued to your own namespace or account, or to record and read a verified parent-to-child derivation.
+**Provenance, not proximity.** In Mnemo, provenance means a vector resolves to a `vector_uid` that Mnemo issued at embed time and that is still attributable to the account or namespace that issued it. A nearest-neighbour search can say a vector is close to something, not whether a vector you hold resolves to an object your own pipeline registered. Use Mnemo when you store embeddings and later need to check whether a vector you hold (for example a retrieved one) resolves to an object registered to your own namespace or account, or to record and read a verified parent-to-child derivation.
 
 ## What this repository is
 

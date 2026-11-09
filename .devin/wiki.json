@@ -1,0 +1,46 @@
+{
+  "repo_notes": [
+    {
+      "content": "Positioning: Provenance, not proximity. Mnemo Verify checks whether a submitted vector resolves to an object registered to the caller's own Mnemo account or namespace. verified: false (None from the Python SDK) is a normal result; it is not proof that the vector is foreign, unwatermarked or someone else's. Mnemo does not establish truth, authorship, ownership, authenticity or the source model of a vector, and it is not a similarity search or a vector database. Do not describe Verify as checking ownership, as cryptographic proof, or as detecting where a vector came from. Do not describe or speculate about how watermarking or verification works internally, or about the meaning of individual diagnostic fields; they are informational and callers must not base decisions on them. Callers decide on whether a vector verified and, when they know which object it should be, on comparing the returned vector_uid with the one stored at embed time; confidence is not a probability or a threshold to apply. Identity: Mnemo here is the embedding-vector provenance API at trymnemo.com (GitHub MnemoProtocol; PyPI mnemo-protocol, imported as mnemo_sdk), not the unrelated PyPI packages mnemo, mnemo-sdk, mnemo-ai or mnemo-mcp, and not an AI-memory app or MCP server. agent-protocol.md is the source of truth for endpoints, payment rails, offers and prices; describe them exactly as it does."
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "What the Mnemo Agent API is and is not; identity and disambiguation"
+    },
+    {
+      "title": "Quickstart",
+      "purpose": "Run the shell and Python examples end to end",
+      "parent": "Overview"
+    },
+    {
+      "title": "Namespaces and capabilities",
+      "purpose": "Accountless namespaces and the X-Mnemo-Capability header"
+    },
+    {
+      "title": "Embed and lineage",
+      "purpose": "POST /v1/embed, naming a parent, GET /v1/lineage/{vector_uid}"
+    },
+    {
+      "title": "Verify",
+      "purpose": "verified, vector_uid, confidence and policy_ok; healthy negative results"
+    },
+    {
+      "title": "Payment rails and offers",
+      "purpose": "Every rail and offer exactly as agent-protocol.md lists them"
+    },
+    {
+      "title": "Errors, retries and idempotency",
+      "purpose": "Status codes and retry rules"
+    },
+    {
+      "title": "Accounts, promotion and plans",
+      "purpose": "Promotion to an account and the API-key path"
+    },
+    {
+      "title": "Machine-readable artifacts",
+      "purpose": "openapi.json, agent-manifest.json, llms.txt and context7.json"
+    }
+  ]
+}

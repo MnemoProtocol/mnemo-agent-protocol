@@ -1,5 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
+  "url": "https://context7.com/mnemoprotocol/mnemo-agent-protocol",
+  "public_key": "pk_KAaUOFvzDiOftNrH3p7nv",
   "projectTitle": "Mnemo Agent API",
   "description": "Public HTTP contract for the Mnemo Agent API at https://api.trymnemo.com. Mnemo is an HTTP API that watermarks embedding vectors, checks whether a vector resolves to an object registered to your own account or namespace, and records lineage from parents you name at embed time; access by API key, or with no account required at $0.01 per verification (machine payments: x402 on Base or MPP on Tempo).",
   "rules": [

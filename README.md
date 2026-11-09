@@ -36,6 +36,7 @@ client = MnemoClient(api_key="your-api-key")
 
 - SDK repository: https://github.com/MnemoProtocol/mnemo-sdk
 - PyPI: https://pypi.org/project/mnemo-protocol/ (distribution `mnemo-protocol`, import `mnemo_sdk`)
+- Get an API key (a person signs in): [trymnemo.com/login](https://www.trymnemo.com/login?next=/platform/quickstart&utm_source=mnemo-agent-protocol&utm_medium=readme&utm_campaign=mnemo-readme&utm_content=get-api-key)
 
 The SDK does not implement accountless namespaces, lineage or machine payments (x402, MPP); for those, use this contract over HTTP.
 

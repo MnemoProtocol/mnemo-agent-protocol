@@ -195,7 +195,9 @@ body (§6). A funded namespace (§4.1) verifies on its burst credits and is neve
 ```
 
 `verified: true` means the vector resolved to an object registered to this namespace or account; `vector_uid` is that
-object's id. It says nothing about the content the vector represents: not its truth, authorship or ownership.
+object's id. It says nothing about the content the vector represents: not its truth, authorship or ownership. Accept
+the vector only if the returned `vector_uid` equals the one you stored for that record; a different `vector_uid`
+means it resolved to a different object of yours.
 
 A `200` with `verified: false`, `vector_uid: null`, `policy_ok: false` and `lineage: null` is a **healthy negative
 result**: the verification ran, and attribution to one of this namespace's or account's registered objects could not be

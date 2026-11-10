@@ -44,7 +44,7 @@ description: Watermark embedding vectors with Mnemo and later verify whether a v
 ## Reading a verify result
 
 - Decide on `verified`. `confidence` is diagnostic, not a probability. `policy_ok` is not the verdict.
-- `verified: true`: `vector_uid` is the object of yours it resolved to.
+- `verified: true`: `vector_uid` is the object of yours it resolved to. Accept the vector only if the returned `vector_uid` equals the one you stored for that record; a different `vector_uid` means it resolved to a different object of yours.
 - `verified: false` with `vector_uid: null`: a healthy, charged, final result.
   - Attribution to your namespace could not be shown. It is not proof the vector belongs to someone else.
   - Do not pay again hoping for a different answer.

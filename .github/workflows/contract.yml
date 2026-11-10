@@ -10,6 +10,12 @@ name: contract
 # against it without a token. On pull requests, the `live-compare` job
 # reports (warnings only, never fails) which files differ from the live
 # site; a hand edit shows up there, and the scheduled `drift` job fails on it.
+#
+# skills/mnemo-vector-provenance/SKILL.md is a byte-identical copy of the
+# agent skill the site serves at /.well-known/skills/mnemo-vector-provenance/
+# (edited only in the site repo); it is here so `npx skills add
+# MnemoProtocol/mnemo-agent-protocol` and GitHub skill indexes find it.
+# Both jobs below compare it with the live file.
 
 on:
   pull_request:
@@ -81,10 +87,12 @@ jobs:
             echo "| file | PR sha256 | live sha256 | result |"
             echo "|---|---|---|---|"
           } >> "$GITHUB_STEP_SUMMARY"
-          for f in llms.txt agent-protocol.md openapi.json agent-manifest.json examples/agent-quickstart.sh examples/agent_quickstart.py; do
+          for spec in llms.txt agent-protocol.md openapi.json agent-manifest.json examples/agent-quickstart.sh examples/agent_quickstart.py \
+              "skills/mnemo-vector-provenance/SKILL.md=.well-known/skills/mnemo-vector-provenance/SKILL.md"; do
+            f="${spec%%=*}"; live_path="${spec#*=}"
             repo=$(sha256sum "$f" | cut -d' ' -f1)
             tmp=$(mktemp)
-            if curl -fsSL --retry 3 --retry-all-errors --max-time 30 -o "$tmp" "${base}/${f}"; then
+            if curl -fsSL --retry 3 --retry-all-errors --max-time 30 -o "$tmp" "${base}/${live_path}"; then
               live=$(sha256sum "$tmp" | cut -d' ' -f1)
             else
               live="fetch-failed"
@@ -94,7 +102,7 @@ jobs:
               result="match"
             else
               result="differs"
-              echo "::warning file=${f}::${f} differs from ${base}/${f} (PR ${repo}, live ${live}). Expected on a MnemoV2 sync PR before deploy; never hand-edit this file."
+              echo "::warning file=${f}::${f} differs from ${base}/${live_path} (PR ${repo}, live ${live}). Expected on a MnemoV2 sync PR before deploy; never hand-edit this file."
             fi
             echo "${f}: pr=${repo} live=${live} ${result}"
             echo "| \`${f}\` | \`${repo:0:12}\` | \`${live:0:12}\` | ${result} |" >> "$GITHUB_STEP_SUMMARY"
@@ -122,10 +130,12 @@ jobs:
             echo "| file | repo sha256 | live sha256 | result |"
             echo "|---|---|---|---|"
           } >> "$GITHUB_STEP_SUMMARY"
-          for f in llms.txt agent-protocol.md openapi.json agent-manifest.json examples/agent-quickstart.sh examples/agent_quickstart.py; do
+          for spec in llms.txt agent-protocol.md openapi.json agent-manifest.json examples/agent-quickstart.sh examples/agent_quickstart.py \
+              "skills/mnemo-vector-provenance/SKILL.md=.well-known/skills/mnemo-vector-provenance/SKILL.md"; do
+            f="${spec%%=*}"; live_path="${spec#*=}"
             repo=$(sha256sum "$f" | cut -d' ' -f1)
             tmp=$(mktemp)
-            if curl -fsSL --retry 3 --retry-all-errors --max-time 30 -o "$tmp" "${base}/${f}"; then
+            if curl -fsSL --retry 3 --retry-all-errors --max-time 30 -o "$tmp" "${base}/${live_path}"; then
               live=$(sha256sum "$tmp" | cut -d' ' -f1)
             else
               live="fetch-failed"
@@ -136,7 +146,7 @@ jobs:
             else
               result="DRIFT"
               fail=1
-              echo "::error file=${f}::${f} differs from ${base}/${f} (repo ${repo}, live ${live})"
+              echo "::error file=${f}::${f} differs from ${base}/${live_path} (repo ${repo}, live ${live})"
             fi
             echo "${f}: repo=${repo} live=${live} ${result}"
             echo "| \`${f}\` | \`${repo:0:12}\` | \`${live:0:12}\` | ${result} |" >> "$GITHUB_STEP_SUMMARY"

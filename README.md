@@ -76,7 +76,7 @@ Mnemo here is the embedding-vector provenance API at trymnemo.com (GitHub MnemoP
 
 Paying with `examples/agent_quickstart.py` needs Python 3.10+ (`pip install "x402[evm]==2.22.0"`); steps without payment need only the standard library. The examples pay with x402; MPP payments (Tempo, or a card for the burst) are made the same way with an MPP client.
 
-An installable agent skill is published at https://www.trymnemo.com/.well-known/skills/mnemo-vector-provenance/SKILL.md (`npx skills add https://www.trymnemo.com`).
+An installable agent skill is published at https://www.trymnemo.com/.well-known/skills/mnemo-vector-provenance/SKILL.md (`npx skills add https://www.trymnemo.com`). A byte-identical copy is in this repository at [skills/mnemo-vector-provenance/SKILL.md](skills/mnemo-vector-provenance/SKILL.md) (`npx skills add MnemoProtocol/mnemo-agent-protocol`).
 
 ## When not to use Mnemo
 
